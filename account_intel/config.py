@@ -7,7 +7,10 @@ from typing import Optional
 from dotenv import load_dotenv
 
 DEFAULT_MODEL = "claude-sonnet-5"
+DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
+DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 SUPPORTED_LANGS = ("fr", "en")
+SUPPORTED_BACKENDS = ("anthropic", "ollama")
 
 
 class ConfigError(Exception):
@@ -21,25 +24,25 @@ class Settings:
     model: str
     default_lang: str
     linkedin_mcp_command: Optional[str]
+    llm_backend: str
+    ollama_model: str
+    ollama_base_url: str
 
 
-def load_settings(require_anthropic: bool = True) -> Settings:
-    """Charge la configuration. TAVILY_API_KEY est toujours requise ;
-    ANTHROPIC_API_KEY ne l'est que si `require_anthropic` (faux en mode
-    --no-llm, où aucune synthèse IA n'est effectuée)."""
+def load_settings() -> Settings:
+    """Charge la configuration. Seule TAVILY_API_KEY est toujours requise :
+    la recherche publique est nécessaire dans tous les modes. La
+    disponibilité d'ANTHROPIC_API_KEY (requise uniquement pour le backend
+    "anthropic") est validée par l'appelant selon le mode choisi
+    (--no-llm, --backend ollama...)."""
     load_dotenv()
 
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     tavily_key = os.getenv("TAVILY_API_KEY", "").strip()
 
-    required = [("TAVILY_API_KEY", tavily_key)]
-    if require_anthropic:
-        required.append(("ANTHROPIC_API_KEY", anthropic_key))
-
-    missing = [name for name, value in required if not value]
-    if missing:
+    if not tavily_key:
         raise ConfigError(
-            f"Clé(s) API manquante(s) : {', '.join(missing)}. "
+            "Clé API manquante : TAVILY_API_KEY. "
             "Copiez .env.example vers .env et renseignez vos clés."
         )
 
@@ -48,6 +51,13 @@ def load_settings(require_anthropic: bool = True) -> Settings:
         raise ConfigError(
             f"DEFAULT_LANG={default_lang!r} non supporté (valeurs possibles : "
             f"{', '.join(SUPPORTED_LANGS)})."
+        )
+
+    llm_backend = os.getenv("LLM_BACKEND", "anthropic").strip().lower()
+    if llm_backend not in SUPPORTED_BACKENDS:
+        raise ConfigError(
+            f"LLM_BACKEND={llm_backend!r} non supporté (valeurs possibles : "
+            f"{', '.join(SUPPORTED_BACKENDS)})."
         )
 
     return Settings(
@@ -59,4 +69,9 @@ def load_settings(require_anthropic: bool = True) -> Settings:
         # Commande pour lancer un serveur MCP tiers déjà installé/configuré à part
         # (ex. "node /chemin/vers/linkedin-mcpserver/build/index.js").
         linkedin_mcp_command=os.getenv("LINKEDIN_MCP_COMMAND", "").strip() or None,
+        llm_backend=llm_backend,
+        ollama_model=os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL).strip()
+        or DEFAULT_OLLAMA_MODEL,
+        ollama_base_url=os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL).strip()
+        or DEFAULT_OLLAMA_BASE_URL,
     )

@@ -1,8 +1,12 @@
-"""Synthèse des données collectées en fiche de préparation de RDV, via Claude."""
+"""Synthèse des données collectées en fiche de préparation de RDV, via Claude
+(backend "anthropic") ou un LLM local (backend "ollama", API compatible
+OpenAI exposée par Ollama : https://ollama.com)."""
 
 import anthropic
+import requests
 
 MAX_OUTPUT_TOKENS = 4096
+OLLAMA_TIMEOUT_SECONDS = 300  # l'inférence locale peut être lente sur CPU/GPU perso
 
 
 class SynthesisError(Exception):
@@ -85,8 +89,16 @@ USER_TEMPLATES = {
 }
 
 
-def generate_brief(settings, company: str, research_text: str, lang: str) -> str:
-    """Appelle Claude et retourne le corps Markdown de la fiche."""
+def generate_brief(
+    settings, company: str, research_text: str, lang: str, backend: str = "anthropic"
+) -> str:
+    """Génère le corps Markdown de la fiche via le backend LLM choisi."""
+    if backend == "ollama":
+        return _generate_with_ollama(settings, company, research_text, lang)
+    return _generate_with_anthropic(settings, company, research_text, lang)
+
+
+def _generate_with_anthropic(settings, company: str, research_text: str, lang: str) -> str:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     try:
         response = client.messages.create(
@@ -114,4 +126,45 @@ def generate_brief(settings, company: str, research_text: str, lang: str) -> str
     ).strip()
     if not text:
         raise SynthesisError("Le modèle n'a renvoyé aucun contenu.")
+    return text
+
+
+def _generate_with_ollama(settings, company: str, research_text: str, lang: str) -> str:
+    url = f"{settings.ollama_base_url.rstrip('/')}/v1/chat/completions"
+    payload = {
+        "model": settings.ollama_model,
+        "temperature": 0.2,
+        "stream": False,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPTS[lang]},
+            {
+                "role": "user",
+                "content": USER_TEMPLATES[lang].format(
+                    company=company, research=research_text
+                ),
+            },
+        ],
+    }
+    try:
+        response = requests.post(url, json=payload, timeout=OLLAMA_TIMEOUT_SECONDS)
+        response.raise_for_status()
+    except requests.ConnectionError as exc:
+        raise SynthesisError(
+            f"Impossible de joindre Ollama sur {settings.ollama_base_url}. "
+            "Lancez-le (ouvrez l'app Ollama, ou `ollama serve`) et vérifiez que "
+            f"le modèle est installé : `ollama pull {settings.ollama_model}`."
+        ) from exc
+    except requests.HTTPError as exc:
+        detail = exc.response.text[:300] if exc.response is not None else str(exc)
+        raise SynthesisError(f"Erreur Ollama HTTP {exc.response.status_code} : {detail}") from exc
+    except requests.RequestException as exc:
+        raise SynthesisError(f"Erreur de communication avec Ollama : {exc}") from exc
+
+    data = response.json()
+    try:
+        text = data["choices"][0]["message"]["content"].strip()
+    except (KeyError, IndexError, TypeError) as exc:
+        raise SynthesisError("Réponse Ollama invalide ou vide.") from exc
+    if not text:
+        raise SynthesisError("Le modèle Ollama n'a renvoyé aucun contenu.")
     return text

@@ -36,6 +36,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--backend",
+        choices=config.SUPPORTED_BACKENDS,
+        help=(
+            "backend de synthèse IA (défaut : LLM_BACKEND du .env, sinon "
+            "'anthropic'). 'ollama' utilise un LLM local via Ollama "
+            "(OLLAMA_MODEL, OLLAMA_BASE_URL) — aucune clé API requise."
+        ),
+    )
+    parser.add_argument(
         "--linkedin-person",
         action="append",
         default=[],
@@ -53,9 +62,18 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
-        settings = config.load_settings(require_anthropic=not args.no_llm)
+        settings = config.load_settings()
     except config.ConfigError as exc:
         print(f"❌ {exc}", file=sys.stderr)
+        return 2
+
+    backend = args.backend or settings.llm_backend
+    if not args.no_llm and backend == "anthropic" and not settings.anthropic_api_key:
+        print(
+            "❌ Clé API manquante : ANTHROPIC_API_KEY. Copiez .env.example vers "
+            ".env et renseignez-la, ou utilisez --backend ollama / --no-llm.",
+            file=sys.stderr,
+        )
         return 2
 
     lang = args.lang or settings.default_lang
@@ -109,10 +127,11 @@ def main(argv=None) -> int:
         print("📄 Mode brut (--no-llm) : mise en forme sans synthèse IA...")
         body = report.raw_body(bundle, lang)
     else:
-        print(f"🧠 Synthèse de la fiche ({lang}) avec {settings.model}...")
+        model_label = settings.ollama_model if backend == "ollama" else settings.model
+        print(f"🧠 Synthèse de la fiche ({lang}) avec {backend}:{model_label}...")
         try:
             body = synthesis.generate_brief(
-                settings, company, bundle.to_prompt_text(), lang
+                settings, company, bundle.to_prompt_text(), lang, backend=backend
             )
         except synthesis.SynthesisError as exc:
             print(f"❌ {exc}", file=sys.stderr)

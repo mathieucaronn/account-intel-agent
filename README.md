@@ -48,12 +48,25 @@ Puis renseignez dans `.env` :
 
 | Variable | Rôle | Où l'obtenir |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Synthèse des fiches (non requise en mode `--no-llm`) | [console.anthropic.com](https://console.anthropic.com/) |
+| `ANTHROPIC_API_KEY` | Synthèse des fiches (non requise en mode `--no-llm` ou `--backend ollama`) | [console.anthropic.com](https://console.anthropic.com/) |
 | `TAVILY_API_KEY` | Recherche web & presse | [tavily.com](https://tavily.com/) (plan gratuit) |
 | `ANTHROPIC_MODEL` | *(optionnel)* modèle Claude | défaut : `claude-sonnet-5` |
 | `DEFAULT_LANG` | *(optionnel)* `fr` ou `en` | défaut : `fr` |
+| `LLM_BACKEND` | *(optionnel)* `anthropic` ou `ollama` | défaut : `anthropic` |
+| `OLLAMA_MODEL` / `OLLAMA_BASE_URL` | *(optionnel)* si `LLM_BACKEND=ollama` | défaut : `llama3.1:8b` / `http://localhost:11434` |
 
 Aucun secret n'est stocké dans le code ; `.env` est ignoré par git.
+
+### Synthèse en local avec Ollama (sans clé Anthropic)
+
+1. Installez [Ollama](https://ollama.com/download) (macOS : `.dmg` officiel, pas besoin de Homebrew).
+2. Téléchargez un modèle : `ollama pull llama3.1:8b` (~4,7 Go, adapté à partir de 16 Go de RAM).
+3. Lancez `python -m account_intel "Sanofi" --backend ollama` (ou `LLM_BACKEND=ollama` dans `.env`).
+
+⚠️ Un modèle local de cette taille suit moins fidèlement que Claude les règles
+strictes du prompt (citation systématique des sources, interdiction
+d'inventer des faits) — à réserver à des tests, pas à un usage commercial
+sans relecture humaine.
 
 ## Utilisation
 
