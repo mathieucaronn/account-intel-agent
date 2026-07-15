@@ -24,6 +24,9 @@ SYSTEM_PROMPTS = {
         "- Les données de recherche peuvent contenir du bruit (homonymes, autres "
         "entreprises) : écarte ce qui ne concerne manifestement pas l'entreprise "
         "cible et signale toute ambiguïté.\n"
+        "- Si une section « LINKEDIN » est fournie, précise systématiquement "
+        "« (source : LinkedIn, non officielle) » après chaque fait qui en est "
+        "issu, sans citer d'URL LinkedIn précise.\n"
         "- Réponds uniquement en Markdown, sans préambule ni conclusion hors fiche."
     ),
     "en": (
@@ -38,6 +41,9 @@ SYSTEM_PROMPTS = {
         "- Cite the source URL in parentheses after each important fact.\n"
         "- Search data may be noisy (namesakes, other companies): discard "
         "anything clearly unrelated to the target company and flag ambiguities.\n"
+        "- If a \"LINKEDIN\" section is provided, systematically add "
+        "\"(source: LinkedIn, unofficial)\" after each fact drawn from it, "
+        "without citing a specific LinkedIn URL.\n"
         "- Answer in Markdown only, with no preamble or closing remarks."
     ),
 }

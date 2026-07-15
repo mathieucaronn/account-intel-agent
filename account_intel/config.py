@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -19,6 +20,7 @@ class Settings:
     tavily_api_key: str
     model: str
     default_lang: str
+    linkedin_mcp_command: Optional[str]
 
 
 def load_settings() -> Settings:
@@ -53,4 +55,8 @@ def load_settings() -> Settings:
         tavily_api_key=tavily_key,
         model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
         default_lang=default_lang,
+        # Extension optionnelle et NON conforme aux CGU LinkedIn — voir LINKEDIN_MCP.md.
+        # Commande pour lancer un serveur MCP tiers déjà installé/configuré à part
+        # (ex. "node /chemin/vers/linkedin-mcpserver/build/index.js").
+        linkedin_mcp_command=os.getenv("LINKEDIN_MCP_COMMAND", "").strip() or None,
     )

@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from . import config, report, search, synthesis
+from . import config, linkedin_optional, report, search, synthesis
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +25,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--no-pdf", action="store_true", help="ne générer que le Markdown"
+    )
+    parser.add_argument(
+        "--linkedin-person",
+        action="append",
+        default=[],
+        metavar="NOM",
+        help=(
+            "⚠️ EXPÉRIMENTAL / NON CONFORME AUX CGU LINKEDIN (voir LINKEDIN_MCP.md). "
+            "Nom d'un dirigeant à rechercher via un serveur MCP tiers configuré "
+            "dans LINKEDIN_MCP_COMMAND. Répétable."
+        ),
     )
     return parser
 
@@ -59,6 +70,31 @@ def main(argv=None) -> int:
         print(f"⚠️  {warning}", file=sys.stderr)
     n_news = len(bundle.news.get("results", []))
     print(f"   → {n_news} article(s) de presse, {len(bundle.pages)} page(s) du site officiel.")
+
+    if args.linkedin_person:
+        if not settings.linkedin_mcp_command:
+            print(
+                "❌ --linkedin-person requiert LINKEDIN_MCP_COMMAND dans .env "
+                "(voir LINKEDIN_MCP.md).",
+                file=sys.stderr,
+            )
+            return 2
+        print(
+            "⚠️  Extension LinkedIn activée : NON CONFORME AUX CGU LINKEDIN "
+            "(scraping via credentials personnels, risque de bannissement de "
+            "compte). Voir LINKEDIN_MCP.md. Poursuite à vos risques.",
+            file=sys.stderr,
+        )
+        for person in args.linkedin_person:
+            print(f"🔗 Recherche LinkedIn (non officielle) : {person}...")
+            try:
+                result = linkedin_optional.fetch_profile(
+                    settings.linkedin_mcp_command, f"{person} {company}"
+                )
+                bundle.linkedin.append({"person": person, **result})
+            except linkedin_optional.LinkedInMCPError as exc:
+                bundle.warnings.append(f"LinkedIn ({person}) échoué : {exc}")
+                print(f"⚠️  LinkedIn ({person}) échoué : {exc}", file=sys.stderr)
 
     print(f"🧠 Synthèse de la fiche ({lang}) avec {settings.model}...")
     try:

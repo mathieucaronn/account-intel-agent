@@ -1,0 +1,4 @@
+# Dépendance optionnelle pour l'extension LinkedIn expérimentale.
+# NON installée par défaut. Voir LINKEDIN_MCP.md avant utilisation :
+# cette extension n'est PAS conforme aux CGU de LinkedIn.
+mcp>=1.0

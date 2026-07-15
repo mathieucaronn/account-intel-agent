@@ -72,6 +72,13 @@ Sortie : `output/doctolib-2026-07-15.md` et `output/doctolib-2026-07-15.pdf`.
 - ✅ API de recherche officielle (Tavily), sites d'entreprise et presse librement accessible
 - ✅ Les fiches citent systématiquement leurs sources
 
+## Extension optionnelle
+
+Une extension expérimentale et **non conforme aux CGU LinkedIn** existe pour
+enrichir les fiches avec des profils de dirigeants (désactivée par défaut,
+opt-in explicite requis) : voir [LINKEDIN_MCP.md](LINKEDIN_MCP.md) avant
+utilisation.
+
 ## Limites connues
 
 - La qualité dépend de l'empreinte publique de l'entreprise (les PME discrètes

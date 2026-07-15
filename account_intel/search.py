@@ -47,6 +47,7 @@ class ResearchBundle:
     news: dict = field(default_factory=dict)
     leadership: dict = field(default_factory=dict)
     pages: list = field(default_factory=list)  # [{"url", "content"}]
+    linkedin: list = field(default_factory=list)  # [{"person", "tool", "content"}]
     warnings: list = field(default_factory=list)
 
     def is_empty(self) -> bool:
@@ -87,6 +88,15 @@ class ResearchBundle:
         if len(page_lines) == 1:
             page_lines.append("(aucune page extraite)")
         blocks.append("\n".join(page_lines))
+
+        if self.linkedin:
+            li_lines = [
+                "=== LINKEDIN (source tierce non officielle, hors CGU LinkedIn — "
+                "à mentionner comme telle, ne pas citer d'URL LinkedIn précise) ==="
+            ]
+            for entry in self.linkedin:
+                li_lines.append(f"--- {entry['person']} ---\n{entry['content']}")
+            blocks.append("\n".join(li_lines))
 
         return "\n\n".join(blocks)
 
