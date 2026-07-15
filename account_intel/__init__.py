@@ -1,4 +1,5 @@
-"""Agent d'account intelligence : fiches de préparation de RDV commerciaux
-à partir de données publiques (site de l'entreprise, presse)."""
+"""Dashboard d'account intelligence pour équipes sales : revue de presse et
+de posts LinkedIn de dirigeants, par client suivi, à partir de données
+publiques."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

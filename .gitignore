@@ -1,7 +1,10 @@
 # Secrets
 .env
 
-# Fiches générées
+# Liste réelle des clients suivis (données commerciales privées)
+clients.json
+
+# Fiches / dashboard générés
 output/
 
 # Python

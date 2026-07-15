@@ -1,8 +1,7 @@
 # Extension LinkedIn (expérimentale, hors CGU) ⚠️
 
-Cette extension est **désactivée par défaut** et **volontairement absente**
-du pipeline principal (`search.py`, `README.md`). Elle existe pour les
-personnes qui, en connaissance de cause, veulent enrichir leurs fiches avec
+Cette extension est **désactivée par défaut**. Elle existe pour les
+personnes qui, en connaissance de cause, veulent enrichir le dashboard avec
 des données de profils LinkedIn de dirigeants — au prix d'une non-conformité
 aux CGU LinkedIn.
 
@@ -32,8 +31,9 @@ un usage personnel et à vos risques.
   que vous configurez, découvre dynamiquement les tools exposés (`list_tools`)
   et choisit heuristiquement celui qui ressemble à une recherche de profil.
   Rien n'est codé en dur sur le protocole propriétaire du serveur tiers.
-- Ce module n'est importé et exécuté que si vous passez explicitement
-  `--linkedin-person "Nom"` en ligne de commande.
+- Ce module n'est appelé que pour les dirigeants listés dans le champ
+  `"executives"` de chaque client de `clients.json`, et seulement si
+  `LINKEDIN_MCP_COMMAND` est configuré dans `.env`.
 
 ## Installation (à vos risques)
 
@@ -52,19 +52,28 @@ un usage personnel et à vos risques.
 
 ## Utilisation
 
-```bash
-python -m account_intel "Doctolib" --linkedin-person "Jane Doe"
+Ajoutez les dirigeants à suivre dans `clients.json` :
+
+```json
+[{ "name": "Doctolib", "executives": ["Jane Doe"] }]
 ```
 
-Un avertissement de non-conformité est affiché à chaque exécution utilisant
-cette option. Dans la fiche générée, tout fait issu de LinkedIn est marqué
-« (source : LinkedIn, non officielle) », sans URL LinkedIn précise.
+Puis lancez normalement :
+
+```bash
+python -m account_intel
+```
+
+Un avertissement de non-conformité est affiché à chaque exécution qui
+appelle effectivement l'extension (clients avec des dirigeants configurés).
+Dans le dashboard, la colonne LinkedIn porte systématiquement la mention
+« ⚠️ Source non officielle, hors CGU LinkedIn ».
 
 ## Alternative recommandée
 
-Pour une couverture des dirigeants sans ce risque, la recherche presse et
-site officiel (`search.py`) capte déjà interviews, communiqués et pages
-équipe — souvent suffisant pour documenter priorités et parcours. Pour une
-couverture LinkedIn plus systématique et conforme, des fournisseurs sous
-licence avec accord commercial LinkedIn existent (ex. Proxycurl, People Data
-Labs) et peuvent être branchés de façon similaire.
+Pour une couverture des dirigeants sans ce risque, la colonne presse du
+dashboard (interviews, communiqués, déclarations relayées) est souvent
+suffisante pour documenter priorités et parcours. Pour une couverture
+LinkedIn plus systématique et conforme, des fournisseurs sous licence avec
+accord commercial LinkedIn existent (ex. Proxycurl, People Data Labs) et
+peuvent être branchés de façon similaire dans `dashboard.py`.

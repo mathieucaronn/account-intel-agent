@@ -1,59 +1,48 @@
-"""Point d'entrée CLI : python -m account_intel "Nom de l'entreprise" """
+"""Point d'entrée CLI : python -m account_intel [entreprises ad hoc...]
+
+Régénère le dashboard HTML (presse + LinkedIn) pour les clients suivis dans
+clients.json, plus d'éventuelles entreprises ponctuelles passées en argument.
+"""
 
 import argparse
 import sys
 
-from . import config, linkedin_optional, report, search, synthesis
+from . import clients as clients_module
+from . import config, dashboard, search
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m account_intel",
         description=(
-            "Génère une fiche de préparation de RDV commercial pour une "
-            "entreprise, à partir de données publiques (site officiel, presse)."
+            "Régénère le dashboard HTML de revue de presse et de posts "
+            "LinkedIn pour les équipes sales, à partir de données publiques."
         ),
     )
-    parser.add_argument("company", help="nom de l'entreprise à analyser")
+    parser.add_argument(
+        "company",
+        nargs="*",
+        help=(
+            "entreprise(s) ponctuelle(s) à inclure dans ce dashboard en plus "
+            "des clients suivis (clients.json), sans les y enregistrer"
+        ),
+    )
+    parser.add_argument(
+        "--add",
+        action="append",
+        default=[],
+        metavar="ENTREPRISE",
+        help="ajoute durablement cette entreprise à clients.json (répétable)",
+    )
     parser.add_argument(
         "--lang",
         choices=config.SUPPORTED_LANGS,
-        help="langue de la fiche (défaut : DEFAULT_LANG du .env, sinon fr)",
+        help="langue du dashboard (défaut : DEFAULT_LANG du .env, sinon fr)",
     )
     parser.add_argument(
-        "--out", default="output", help="dossier de sortie (défaut : output/)"
-    )
-    parser.add_argument(
-        "--no-pdf", action="store_true", help="ne générer que le Markdown"
-    )
-    parser.add_argument(
-        "--no-llm",
-        action="store_true",
-        help=(
-            "mode dégradé sans synthèse IA : formate les résultats de "
-            "recherche bruts en Markdown (pas d'angles d'approche). "
-            "ANTHROPIC_API_KEY n'est alors pas requise."
-        ),
-    )
-    parser.add_argument(
-        "--backend",
-        choices=config.SUPPORTED_BACKENDS,
-        help=(
-            "backend de synthèse IA (défaut : LLM_BACKEND du .env, sinon "
-            "'anthropic'). 'ollama' utilise un LLM local via Ollama "
-            "(OLLAMA_MODEL, OLLAMA_BASE_URL) — aucune clé API requise."
-        ),
-    )
-    parser.add_argument(
-        "--linkedin-person",
-        action="append",
-        default=[],
-        metavar="NOM",
-        help=(
-            "⚠️ EXPÉRIMENTAL / NON CONFORME AUX CGU LINKEDIN (voir LINKEDIN_MCP.md). "
-            "Nom d'un dirigeant à rechercher via un serveur MCP tiers configuré "
-            "dans LINKEDIN_MCP_COMMAND. Répétable."
-        ),
+        "--out",
+        default="output/dashboard.html",
+        help="chemin du fichier HTML généré (défaut : output/dashboard.html)",
     )
     return parser
 
@@ -67,82 +56,56 @@ def main(argv=None) -> int:
         print(f"❌ {exc}", file=sys.stderr)
         return 2
 
-    backend = args.backend or settings.llm_backend
-    if not args.no_llm and backend == "anthropic" and not settings.anthropic_api_key:
+    lang = args.lang or settings.default_lang
+
+    try:
+        tracked = clients_module.load_clients(settings.clients_path)
+    except clients_module.ClientsConfigError as exc:
+        print(f"❌ {exc}", file=sys.stderr)
+        return 2
+
+    for name in args.add:
+        clients_module.add_client(name, settings.clients_path)
+        print(f"➕ « {name} » ajouté à {settings.clients_path}")
+        tracked = clients_module.load_clients(settings.clients_path)
+
+    ad_hoc = [clients_module.Client(name=c.strip(), executives=[]) for c in args.company if c.strip()]
+    all_clients = tracked + ad_hoc
+
+    if not all_clients:
         print(
-            "❌ Clé API manquante : ANTHROPIC_API_KEY. Copiez .env.example vers "
-            ".env et renseignez-la, ou utilisez --backend ollama / --no-llm.",
+            "⚠️  Aucun client suivi et aucune entreprise passée en argument. "
+            "Copiez clients.example.json vers clients.json, ou lancez avec des "
+            "noms d'entreprise en argument.",
             file=sys.stderr,
         )
-        return 2
 
-    lang = args.lang or settings.default_lang
-    company = args.company.strip()
-    if not company:
-        print("❌ Le nom de l'entreprise ne peut pas être vide.", file=sys.stderr)
-        return 2
-
-    print(f"🔎 Collecte d'informations publiques sur « {company} »...")
-    client = search.TavilyClient(settings.tavily_api_key)
-    try:
-        bundle = search.collect(client, company, lang)
-    except search.CompanyNotFoundError as exc:
-        print(f"❌ {exc}", file=sys.stderr)
-        return 1
-    except search.SearchError as exc:
-        print(f"❌ Recherche impossible : {exc}", file=sys.stderr)
-        return 1
-
-    for warning in bundle.warnings:
-        print(f"⚠️  {warning}", file=sys.stderr)
-    n_news = len(bundle.news.get("results", []))
-    print(f"   → {n_news} article(s) de presse, {len(bundle.pages)} page(s) du site officiel.")
-
-    if args.linkedin_person:
-        if not settings.linkedin_mcp_command:
-            print(
-                "❌ --linkedin-person requiert LINKEDIN_MCP_COMMAND dans .env "
-                "(voir LINKEDIN_MCP.md).",
-                file=sys.stderr,
-            )
-            return 2
+    linkedin_enabled = bool(settings.linkedin_mcp_command)
+    if linkedin_enabled and any(c.executives for c in all_clients):
         print(
             "⚠️  Extension LinkedIn activée : NON CONFORME AUX CGU LINKEDIN "
             "(scraping via credentials personnels, risque de bannissement de "
             "compte). Voir LINKEDIN_MCP.md. Poursuite à vos risques.",
             file=sys.stderr,
         )
-        for person in args.linkedin_person:
-            print(f"🔗 Recherche LinkedIn (non officielle) : {person}...")
-            try:
-                result = linkedin_optional.fetch_profile(
-                    settings.linkedin_mcp_command, f"{person} {company}"
-                )
-                bundle.linkedin.append({"person": person, **result})
-            except linkedin_optional.LinkedInMCPError as exc:
-                bundle.warnings.append(f"LinkedIn ({person}) échoué : {exc}")
-                print(f"⚠️  LinkedIn ({person}) échoué : {exc}", file=sys.stderr)
 
-    if args.no_llm:
-        print("📄 Mode brut (--no-llm) : mise en forme sans synthèse IA...")
-        body = report.raw_body(bundle, lang)
-    else:
-        model_label = settings.ollama_model if backend == "ollama" else settings.model
-        print(f"🧠 Synthèse de la fiche ({lang}) avec {backend}:{model_label}...")
-        try:
-            body = synthesis.generate_brief(
-                settings, company, bundle.to_prompt_text(), lang, backend=backend
-            )
-        except synthesis.SynthesisError as exc:
-            print(f"❌ {exc}", file=sys.stderr)
-            return 1
+    tavily_client = search.TavilyClient(settings.tavily_api_key)
+    clients_data = []
+    for c in all_clients:
+        print(f"🔎 Collecte pour « {c.name} »...")
+        data = dashboard.collect_client(
+            tavily_client, settings.linkedin_mcp_command, c.name, c.executives, lang
+        )
+        if data.press_error:
+            print(f"⚠️  {c.name} : {data.press_error}", file=sys.stderr)
+        for entry in data.linkedin:
+            if entry["status"] == "error":
+                print(f"⚠️  {c.name} / {entry['person']} : {entry['error']}", file=sys.stderr)
+        clients_data.append(data)
 
-    result = report.write_report(company, body, args.out, lang, make_pdf=not args.no_pdf)
-    print(f"✅ Fiche Markdown : {result['md']}")
-    if result["pdf"]:
-        print(f"✅ Fiche PDF      : {result['pdf']}")
-    elif result["pdf_error"]:
-        print(f"⚠️  PDF non généré ({result['pdf_error']}), la fiche .md reste disponible.")
+    html_content = dashboard.render_html(clients_data, lang, linkedin_enabled)
+    out_path = dashboard.write_dashboard(html_content, args.out)
+    print(f"✅ Dashboard généré : {out_path}")
     return 0
 
 

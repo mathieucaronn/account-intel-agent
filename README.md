@@ -1,33 +1,33 @@
-# Account Intel Agent 🕵️
+# Account Intel Dashboard 🕵️
 
-Agent d'**account intelligence** pour équipes commerciales : à partir du nom
-d'une entreprise, il génère une fiche de synthèse complète pour préparer un
-rendez-vous commercial, en agrégeant **uniquement des données publiques**.
+Dashboard d'**account intelligence** pour équipes commerciales : une revue de
+presse et de posts LinkedIn par client suivi, pour préparer des conversations
+sans rester scotché aux alertes Google, en agrégeant **uniquement des données
+publiques**.
 
-## Ce que contient une fiche
+## Ce que montre le dashboard
 
-- 🏢 **Présentation & enjeux business** — activité, positionnement, enjeux stratégiques
-- 👥 **Décideurs clés** — rôle, parcours, priorités apparentes
-- 📰 **Actualités récentes exploitables** — levées de fonds, partenariats, nominations, signaux d'achat
-- 🎯 **Angles d'approche suggérés** — 3 à 5 ouvertures concrètes, chacune reliée à un fait sourcé
+Un fichier HTML statique avec un sélecteur de client en haut (Sanofi,
+Dassault Systèmes...) et, pour le client sélectionné, deux colonnes :
 
-Chaque fait important est **cité avec son URL source** ; les informations
-introuvables ou incertaines sont signalées comme telles.
+- 📰 **Presse récente** (6 derniers mois) — titre, date, extrait, lien source
+- 🔗 **LinkedIn des dirigeants suivis** — profil/activité récente *(extension
+  optionnelle et non conforme aux CGU LinkedIn, voir plus bas)*
 
 ## Fonctionnement
 
 ```
-nom d'entreprise
+clients.json (clients suivis + dirigeants)
       │
       ▼
-1. Recherche (Tavily) ── profil · presse (6 mois) · dirigeants
-2. Extraction          ── contenu des pages du site officiel
-3. Synthèse (Claude)   ── fiche structurée, faits sourcés
-4. Rendu               ── fiche .md + .pdf dans output/
+1. Recherche presse (Tavily)     ── par client
+2. LinkedIn (optionnel)          ── par dirigeant configuré
+3. Rendu HTML statique           ── output/dashboard.html
 ```
 
-Python pur, 4 dépendances (`anthropic`, `requests`, `python-dotenv`,
-`markdown-pdf`), pas de framework d'agent.
+Python pur, 2 dépendances (`requests`, `python-dotenv`), pas de framework
+d'agent ni de serveur web permanent : le dashboard est régénéré à la demande
+en relançant la commande, puis s'ouvre comme un simple fichier HTML.
 
 ## Installation
 
@@ -42,67 +42,76 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
+cp clients.example.json clients.json
 ```
 
-Puis renseignez dans `.env` :
+Renseignez dans `.env` :
 
 | Variable | Rôle | Où l'obtenir |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Synthèse des fiches (non requise en mode `--no-llm` ou `--backend ollama`) | [console.anthropic.com](https://console.anthropic.com/) |
-| `TAVILY_API_KEY` | Recherche web & presse | [tavily.com](https://tavily.com/) (plan gratuit) |
-| `ANTHROPIC_MODEL` | *(optionnel)* modèle Claude | défaut : `claude-sonnet-5` |
+| `TAVILY_API_KEY` | Recherche de presse | [tavily.com](https://tavily.com/) (plan gratuit) |
 | `DEFAULT_LANG` | *(optionnel)* `fr` ou `en` | défaut : `fr` |
-| `LLM_BACKEND` | *(optionnel)* `anthropic` ou `ollama` | défaut : `anthropic` |
-| `OLLAMA_MODEL` / `OLLAMA_BASE_URL` | *(optionnel)* si `LLM_BACKEND=ollama` | défaut : `llama3.1:8b` / `http://localhost:11434` |
+| `CLIENTS_PATH` | *(optionnel)* chemin du fichier de clients | défaut : `clients.json` |
 
-Aucun secret n'est stocké dans le code ; `.env` est ignoré par git.
+Puis éditez `clients.json` avec vos clients suivis (ce fichier est ignoré par
+git — il peut contenir des noms de clients réels) :
 
-### Synthèse en local avec Ollama (sans clé Anthropic)
+```json
+[
+  { "name": "Sanofi", "executives": ["Belén Garijo"] },
+  { "name": "Dassault Systèmes", "executives": [] }
+]
+```
 
-1. Installez [Ollama](https://ollama.com/download) (macOS : `.dmg` officiel, pas besoin de Homebrew).
-2. Téléchargez un modèle : `ollama pull llama3.1:8b` (~4,7 Go, adapté à partir de 16 Go de RAM).
-3. Lancez `python -m account_intel "Sanofi" --backend ollama` (ou `LLM_BACKEND=ollama` dans `.env`).
+`executives` alimente la colonne LinkedIn (extension optionnelle, voir plus
+bas) ; laissez `[]` si vous ne suivez que la presse pour ce client.
 
-⚠️ Un modèle local de cette taille suit moins fidèlement que Claude les règles
-strictes du prompt (citation systématique des sources, interdiction
-d'inventer des faits) — à réserver à des tests, pas à un usage commercial
-sans relecture humaine.
+Aucun secret n'est stocké dans le code ; `.env` et `clients.json` sont
+ignorés par git.
 
 ## Utilisation
 
 ```bash
-python -m account_intel "Doctolib"
+# Régénère le dashboard pour tous les clients de clients.json
+python -m account_intel
 
-# Fiche en anglais, sans PDF, dans un dossier spécifique
-python -m account_intel "Datadog" --lang en --no-pdf --out fiches/
+# Ajoute durablement un client à clients.json puis régénère
+python -m account_intel --add "Danone"
 
-# Mode dégradé sans synthèse IA (ANTHROPIC_API_KEY non requise) :
-# résultats de recherche bruts mis en forme, sans angles d'approche
-python -m account_intel "Sanofi" --no-llm
+# Inclut ponctuellement une entreprise sans l'enregistrer
+python -m account_intel "L'Oréal"
+
+# Dashboard en anglais, chemin de sortie personnalisé
+python -m account_intel --lang en --out dashboards/team.html
 ```
 
-Sortie : `output/doctolib-2026-07-15.md` et `output/doctolib-2026-07-15.pdf`.
+Sortie par défaut : `output/dashboard.html` — ouvrez-le directement dans un
+navigateur. Il n'y a pas de rafraîchissement automatique à chaque visite :
+relancez la commande quand vous voulez des données à jour (chaque
+génération consomme du quota Tavily).
 
 ## Respect des sources
 
-- ❌ Pas de scraping de LinkedIn ni d'aucune plateforme l'interdisant dans ses CGU
-- ✅ API de recherche officielle (Tavily), sites d'entreprise et presse librement accessible
-- ✅ Les fiches citent systématiquement leurs sources
+- ❌ Pas de scraping de LinkedIn par défaut, ni d'aucune plateforme l'interdisant dans ses CGU
+- ✅ API de recherche officielle (Tavily) et presse librement accessible
+- ✅ Chaque article de presse pointe vers sa source
 
-## Extension optionnelle
+## Extension optionnelle : LinkedIn
 
 Une extension expérimentale et **non conforme aux CGU LinkedIn** existe pour
-enrichir les fiches avec des profils de dirigeants (désactivée par défaut,
-opt-in explicite requis) : voir [LINKEDIN_MCP.md](LINKEDIN_MCP.md) avant
-utilisation.
+alimenter la colonne LinkedIn à partir des dirigeants listés dans
+`clients.json` (désactivée par défaut, opt-in explicite requis) : voir
+[LINKEDIN_MCP.md](LINKEDIN_MCP.md) avant utilisation.
 
 ## Limites connues
 
-- La qualité dépend de l'empreinte publique de l'entreprise (les PME discrètes
-  donnent des fiches plus minces — l'agent le signale plutôt que d'inventer).
-- Risque d'homonymie : pour les noms ambigus, précisez (ex. `"Mistral AI"`
-  plutôt que `"Mistral"`).
-- Les données sont un instantané à la date de génération, indiquée en tête de fiche.
+- La couverture presse dépend de l'empreinte publique du client (les PME
+  discrètes remontent moins d'articles).
+- Risque d'homonymie sur les noms ambigus : précisez si besoin (ex.
+  `"Mistral AI"` plutôt que `"Mistral"`).
+- Pas de déduplication ni de synthèse IA : c'est une revue de résultats
+  bruts organisés, pas un résumé rédigé — volontairement, pour rester simple
+  et éviter les coûts/erreurs d'un LLM sur du contenu non filtré.
 
 ## Licence
 
