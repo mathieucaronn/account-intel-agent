@@ -18,6 +18,82 @@ HEADERS = {
     "en": "# Account intelligence brief — {company}\n\n*Generated on {date} from public data.*\n\n",
 }
 
+RAW_LABELS = {
+    "fr": {
+        "disclaimer": (
+            "> ⚠️ **Mode brut (sans synthèse IA).** Résultats de recherche non "
+            "filtrés ni analysés : peuvent contenir du bruit (homonymes, "
+            "informations non vérifiées) et ne comportent pas d'angles "
+            "d'approche suggérés.\n\n"
+        ),
+        "profile": "## 🏢 Profil / recherche générale",
+        "news": "## 📰 Presse récente (6 derniers mois)",
+        "leadership": "## 👥 Dirigeants (résultats de recherche)",
+        "pages": "## 🌐 Extraits du site officiel",
+        "linkedin": "## 🔗 LinkedIn (source non officielle, hors CGU LinkedIn)",
+        "answer": "*Résumé du moteur de recherche : {answer}*\n",
+        "no_results": "*(aucun résultat)*\n",
+        "source": "Source",
+    },
+    "en": {
+        "disclaimer": (
+            "> ⚠️ **Raw mode (no AI synthesis).** Unfiltered, unanalyzed search "
+            "results: may contain noise (namesakes, unverified information) "
+            "and include no suggested talking angles.\n\n"
+        ),
+        "profile": "## 🏢 Profile / general search",
+        "news": "## 📰 Recent press (last 6 months)",
+        "leadership": "## 👥 Executives (search results)",
+        "pages": "## 🌐 Official website excerpts",
+        "linkedin": "## 🔗 LinkedIn (unofficial source, outside LinkedIn ToS)",
+        "answer": "*Search engine summary: {answer}*\n",
+        "no_results": "*(no results)*\n",
+        "source": "Source",
+    },
+}
+
+
+def raw_body(bundle, lang: str) -> str:
+    """Formate les données collectées (bundle.ResearchBundle) en Markdown
+    lisible, sans passer par une synthèse IA. Mode dégradé : pas de
+    déduplication ni d'angles d'approche, juste une mise en forme propre
+    des résultats bruts."""
+    labels = RAW_LABELS[lang]
+    parts = [labels["disclaimer"]]
+
+    for key, payload in (
+        ("profile", bundle.profile),
+        ("news", bundle.news),
+        ("leadership", bundle.leadership),
+    ):
+        parts.append(labels[key])
+        if payload.get("answer"):
+            parts.append(labels["answer"].format(answer=payload["answer"]))
+        results = payload.get("results", [])
+        if not results:
+            parts.append(labels["no_results"])
+        for r in results:
+            date_str = f" ({r['published_date']})" if r.get("published_date") else ""
+            parts.append(
+                f"- **{r.get('title', 'Sans titre')}**{date_str}\n"
+                f"  {r.get('content', '').strip()}\n"
+                f"  [{labels['source']}]({r.get('url', '')})"
+            )
+        parts.append("")
+
+    parts.append(labels["pages"])
+    if not bundle.pages:
+        parts.append(labels["no_results"])
+    for page in bundle.pages:
+        parts.append(f"**{page['url']}**\n\n{page['content']}\n")
+
+    if bundle.linkedin:
+        parts.append(labels["linkedin"])
+        for entry in bundle.linkedin:
+            parts.append(f"**{entry['person']}**\n\n{entry['content']}\n")
+
+    return "\n".join(parts)
+
 
 def slugify(name: str) -> str:
     ascii_name = (

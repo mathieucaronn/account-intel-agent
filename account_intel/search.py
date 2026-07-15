@@ -1,6 +1,7 @@
 """Collecte de données publiques via l'API Tavily (recherche web, presse,
 extraction du contenu des pages du site officiel)."""
 
+import re
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
@@ -11,6 +12,55 @@ EXTRACT_URL = "https://api.tavily.com/extract"
 TIMEOUT_SECONDS = 30
 NEWS_LOOKBACK_DAYS = 180
 MAX_PAGE_CHARS = 5000  # contenu max conservé par page extraite
+
+# Domaines de référence/presse/réseaux fréquemment renvoyés en tête de
+# recherche mais qui ne sont jamais le site officiel de l'entreprise.
+NON_OFFICIAL_DOMAINS = (
+    "wikipedia.org",
+    "linkedin.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "youtube.com",
+    "instagram.com",
+    "crunchbase.com",
+    "bloomberg.com",
+    "reuters.com",
+    "forbes.com",
+    "glassdoor.com",
+    "indeed.com",
+    "prnewswire.com",
+    "businesswire.com",
+    "marketscreener.com",
+    "biospace.com",
+    "pitchbook.com",
+    "societe.com",
+    "infogreffe.fr",
+    "pappers.fr",
+    "data.gouv.fr",
+    "google.com",
+)
+
+_MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_MD_ANCHOR_LINK_RE = re.compile(r"\[([^\]]*)\]\(#[^)]*\)")
+_MD_RELATIVE_LINK_RE = re.compile(r"\[([^\]]*)\]\((?!https?://)[^)]*\)")
+
+
+def _is_official_domain(domain: str) -> bool:
+    domain = domain.lower()
+    return not any(
+        domain == d or domain.endswith(f".{d}") for d in NON_OFFICIAL_DOMAINS
+    )
+
+
+def _sanitize_extracted_markdown(text: str) -> str:
+    """Retire le bruit typique des pages extraites (images, ancres internes
+    et liens relatifs cassés) qui peut polluer le prompt LLM et faire
+    planter la conversion PDF en mode --no-llm."""
+    text = _MD_IMAGE_RE.sub("", text)
+    text = _MD_ANCHOR_LINK_RE.sub(r"\1", text)
+    text = _MD_RELATIVE_LINK_RE.sub(r"\1", text)
+    return text
 
 
 class SearchError(Exception):
@@ -140,7 +190,9 @@ class TavilyClient:
         return [
             {
                 "url": item.get("url", "?"),
-                "content": (item.get("raw_content") or "")[:MAX_PAGE_CHARS],
+                "content": _sanitize_extracted_markdown(item["raw_content"])[
+                    :MAX_PAGE_CHARS
+                ],
             }
             for item in data.get("results", [])
             if item.get("raw_content")
@@ -148,12 +200,19 @@ class TavilyClient:
 
 
 def _official_site_urls(profile: dict, max_urls: int = 3) -> list:
-    """Heuristique : le 1er résultat de la recherche profil est présumé être le
-    site officiel ; on retient les résultats partageant ce même domaine."""
+    """Heuristique : le 1er résultat de la recherche profil dont le domaine
+    n'est pas une référence/presse/réseau connue (Wikipédia, LinkedIn...) est
+    présumé être le site officiel ; on retient les résultats partageant ce
+    même domaine."""
     results = profile.get("results", [])
-    if not results:
-        return []
-    domain = urlparse(results[0].get("url", "")).netloc
+    domain = next(
+        (
+            urlparse(r["url"]).netloc
+            for r in results
+            if r.get("url") and _is_official_domain(urlparse(r["url"]).netloc)
+        ),
+        None,
+    )
     if not domain:
         return []
     urls = [

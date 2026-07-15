@@ -48,7 +48,7 @@ Puis renseignez dans `.env` :
 
 | Variable | Rôle | Où l'obtenir |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Synthèse des fiches | [console.anthropic.com](https://console.anthropic.com/) |
+| `ANTHROPIC_API_KEY` | Synthèse des fiches (non requise en mode `--no-llm`) | [console.anthropic.com](https://console.anthropic.com/) |
 | `TAVILY_API_KEY` | Recherche web & presse | [tavily.com](https://tavily.com/) (plan gratuit) |
 | `ANTHROPIC_MODEL` | *(optionnel)* modèle Claude | défaut : `claude-sonnet-5` |
 | `DEFAULT_LANG` | *(optionnel)* `fr` ou `en` | défaut : `fr` |
@@ -62,6 +62,10 @@ python -m account_intel "Doctolib"
 
 # Fiche en anglais, sans PDF, dans un dossier spécifique
 python -m account_intel "Datadog" --lang en --no-pdf --out fiches/
+
+# Mode dégradé sans synthèse IA (ANTHROPIC_API_KEY non requise) :
+# résultats de recherche bruts mis en forme, sans angles d'approche
+python -m account_intel "Sanofi" --no-llm
 ```
 
 Sortie : `output/doctolib-2026-07-15.md` et `output/doctolib-2026-07-15.pdf`.

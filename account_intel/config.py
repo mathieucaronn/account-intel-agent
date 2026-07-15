@@ -16,27 +16,27 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Settings:
-    anthropic_api_key: str
+    anthropic_api_key: Optional[str]
     tavily_api_key: str
     model: str
     default_lang: str
     linkedin_mcp_command: Optional[str]
 
 
-def load_settings() -> Settings:
+def load_settings(require_anthropic: bool = True) -> Settings:
+    """Charge la configuration. TAVILY_API_KEY est toujours requise ;
+    ANTHROPIC_API_KEY ne l'est que si `require_anthropic` (faux en mode
+    --no-llm, où aucune synthèse IA n'est effectuée)."""
     load_dotenv()
 
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     tavily_key = os.getenv("TAVILY_API_KEY", "").strip()
 
-    missing = [
-        name
-        for name, value in (
-            ("ANTHROPIC_API_KEY", anthropic_key),
-            ("TAVILY_API_KEY", tavily_key),
-        )
-        if not value
-    ]
+    required = [("TAVILY_API_KEY", tavily_key)]
+    if require_anthropic:
+        required.append(("ANTHROPIC_API_KEY", anthropic_key))
+
+    missing = [name for name, value in required if not value]
     if missing:
         raise ConfigError(
             f"Clé(s) API manquante(s) : {', '.join(missing)}. "
@@ -51,7 +51,7 @@ def load_settings() -> Settings:
         )
 
     return Settings(
-        anthropic_api_key=anthropic_key,
+        anthropic_api_key=anthropic_key or None,
         tavily_api_key=tavily_key,
         model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
         default_lang=default_lang,

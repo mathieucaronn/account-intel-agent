@@ -27,6 +27,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-pdf", action="store_true", help="ne générer que le Markdown"
     )
     parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help=(
+            "mode dégradé sans synthèse IA : formate les résultats de "
+            "recherche bruts en Markdown (pas d'angles d'approche). "
+            "ANTHROPIC_API_KEY n'est alors pas requise."
+        ),
+    )
+    parser.add_argument(
         "--linkedin-person",
         action="append",
         default=[],
@@ -44,7 +53,7 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
-        settings = config.load_settings()
+        settings = config.load_settings(require_anthropic=not args.no_llm)
     except config.ConfigError as exc:
         print(f"❌ {exc}", file=sys.stderr)
         return 2
@@ -96,12 +105,18 @@ def main(argv=None) -> int:
                 bundle.warnings.append(f"LinkedIn ({person}) échoué : {exc}")
                 print(f"⚠️  LinkedIn ({person}) échoué : {exc}", file=sys.stderr)
 
-    print(f"🧠 Synthèse de la fiche ({lang}) avec {settings.model}...")
-    try:
-        body = synthesis.generate_brief(settings, company, bundle.to_prompt_text(), lang)
-    except synthesis.SynthesisError as exc:
-        print(f"❌ {exc}", file=sys.stderr)
-        return 1
+    if args.no_llm:
+        print("📄 Mode brut (--no-llm) : mise en forme sans synthèse IA...")
+        body = report.raw_body(bundle, lang)
+    else:
+        print(f"🧠 Synthèse de la fiche ({lang}) avec {settings.model}...")
+        try:
+            body = synthesis.generate_brief(
+                settings, company, bundle.to_prompt_text(), lang
+            )
+        except synthesis.SynthesisError as exc:
+            print(f"❌ {exc}", file=sys.stderr)
+            return 1
 
     result = report.write_report(company, body, args.out, lang, make_pdf=not args.no_pdf)
     print(f"✅ Fiche Markdown : {result['md']}")
