@@ -58,13 +58,14 @@ git — il peut contenir des noms de clients réels) :
 
 ```json
 [
-  { "name": "Sanofi", "executives": ["Belén Garijo"] },
+  { "name": "Sanofi", "executives": [] },
   { "name": "Dassault Systèmes", "executives": [] }
 ]
 ```
 
-`executives` alimente la colonne LinkedIn (extension optionnelle, voir plus
-bas) ; laissez `[]` si vous ne suivez que la presse pour ce client.
+`executives` alimente la colonne LinkedIn (extension optionnelle et
+désactivée par défaut, voir plus bas) ; laissez `[]` si vous ne suivez que
+la presse pour ce client.
 
 Aucun secret n'est stocké dans le code ; `.env` et `clients.json` sont
 ignorés par git.
@@ -83,12 +84,38 @@ python -m account_intel "L'Oréal"
 
 # Dashboard en anglais, chemin de sortie personnalisé
 python -m account_intel --lang en --out dashboards/team.html
+
+# Génère le dashboard, démarre un serveur local et l'ouvre dans le
+# navigateur, avec la barre de recherche active (recherche n'importe
+# quelle entreprise à la volée sans relancer de commande)
+python -m account_intel --serve
 ```
 
 Sortie par défaut : `output/dashboard.html` — ouvrez-le directement dans un
-navigateur. Il n'y a pas de rafraîchissement automatique à chaque visite :
-relancez la commande quand vous voulez des données à jour (chaque
-génération consomme du quota Tavily).
+navigateur (`open output/dashboard.html` sur macOS). Il n'y a pas de
+rafraîchissement automatique à chaque visite : relancez la commande quand
+vous voulez des données à jour (chaque génération consomme du quota
+Tavily).
+
+## Partager un lien fixe (GitHub Pages)
+
+Pour donner un lien à ouvrir sans rien installer (utile pour un manager, un
+tuteur de stage...), publiez le dashboard sur GitHub Pages :
+
+```bash
+python -m account_intel --out docs/index.html
+git add docs/index.html
+git commit -m "Mise à jour du dashboard"
+git push
+```
+
+Puis activez GitHub Pages une fois dans les paramètres du repo (Settings →
+Pages → Source : branche `main`, dossier `/docs`). Le lien obtenu
+(`https://<votre-compte>.github.io/<repo>/`) affiche une **photo figée** au
+moment de la dernière publication, pas des données en temps réel — la barre
+de recherche y indiquera qu'elle est indisponible (pas de serveur derrière
+une page statique). Répétez ces 3 commandes pour rafraîchir le contenu vu
+par la personne qui a le lien.
 
 ## Respect des sources
 
