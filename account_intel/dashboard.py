@@ -18,6 +18,7 @@ LABELS = {
         "sources_label": "Sources",
         "headlines_heading": "Grands titres",
         "official_heading": "Communiqués officiels de l'entreprise",
+        "social_heading": "Réseaux sociaux",
         "no_press": "Aucun article trouvé dans les grands médias suivis pour cette entreprise.",
         "press_error": "Recherche presse indisponible : {error}",
         "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json.",
@@ -31,6 +32,7 @@ LABELS = {
         "sources_label": "Sources",
         "headlines_heading": "Top headlines",
         "official_heading": "Official company announcements",
+        "social_heading": "Social media",
         "no_press": "No articles found in tracked major outlets for this company.",
         "press_error": "Press search unavailable: {error}",
         "no_clients": "No tracked clients. Add some in clients.json.",
@@ -44,6 +46,7 @@ class ClientData:
     name: str
     press: list = field(default_factory=list)
     official_press: list = field(default_factory=list)
+    social: list = field(default_factory=list)
     answer: str = None
     press_error: str = None
 
@@ -61,6 +64,10 @@ def collect_client(tavily_client: search.TavilyClient, client_name: str, lang: s
         data.official_press = search.collect_official_press(tavily_client, client_name, lang)
     except search.SearchError:
         pass  # les communiqués officiels sont un bonus, pas critique
+    try:
+        data.social = search.collect_social(tavily_client, client_name, lang)
+    except search.SearchError:
+        pass  # idem pour les réseaux sociaux
     return data
 
 
@@ -121,10 +128,17 @@ def _render_panel(client: ClientData, index: int, labels: dict) -> str:
     )
     official_html = ""
     if client.official_press:
-        official_cards = _render_cards(client.official_press, labels, official=True)
+        official_cards = _render_cards(client.official_press, labels, badge="official")
         official_html = (
             f'<h3 class="section-heading">{html.escape(labels["official_heading"])}</h3>'
             f'<div class="card-grid">{official_cards}</div>'
+        )
+    social_html = ""
+    if client.social:
+        social_cards = _render_cards(client.social, labels, badge="social")
+        social_html = (
+            f'<h3 class="section-heading">{html.escape(labels["social_heading"])}</h3>'
+            f'<div class="card-grid">{social_cards}</div>'
         )
     return f"""<section class="panel" id="panel-{index}" style="display:{display}">
   <h2>{html.escape(client.name)}</h2>
@@ -132,18 +146,26 @@ def _render_panel(client: ClientData, index: int, labels: dict) -> str:
   {headline_heading}
   <div class="card-grid">{press_html}</div>
   {official_html}
+  {social_html}
 </section>"""
 
 
 def _render_summary(client: ClientData, labels: dict) -> str:
     if not client.answer:
         return ""
-    outlets = sorted({_source_name(r.get("url", "")) for r in client.press if r.get("url")})
+    seen, links = set(), []
+    for r in client.press:
+        name = _source_name(r.get("url", ""))
+        if name and name not in seen and r.get("url"):
+            seen.add(name)
+            links.append(
+                f'<a href="{html.escape(r["url"])}" target="_blank" rel="noopener">{html.escape(name)}</a>'
+            )
     sources_html = ""
-    if outlets:
+    if links:
         sources_html = (
             f'<p class="summary-sources">'
-            f'<span>{html.escape(labels["sources_label"])} :</span> {html.escape(", ".join(outlets))}'
+            f'<span>{html.escape(labels["sources_label"])} :</span> {" · ".join(links)}'
             f'</p>'
         )
     return (
@@ -163,19 +185,36 @@ def render_press(client: ClientData, labels: dict) -> str:
     return _render_cards(client.press, labels)
 
 
-def _render_cards(results: list, labels: dict, official: bool = False) -> str:
+_PLATFORM_LABELS = {
+    "linkedin.com": "LinkedIn",
+    "x.com": "X",
+    "twitter.com": "X",
+    "youtube.com": "YouTube",
+    "instagram.com": "Instagram",
+    "facebook.com": "Facebook",
+}
+
+
+def _render_cards(results: list, labels: dict, badge: str = "press") -> str:
     cards = []
     for i, r in enumerate(results):
         title = html.escape(r.get("title", "Sans titre"))
         url = html.escape(r.get("url", ""))
-        source_name = html.escape(_source_name(r.get("url", "")))
+        domain = urlparse(r.get("url", "")).netloc.replace("www.", "")
+        if badge == "social":
+            badge_text = next(
+                (v for k, v in _PLATFORM_LABELS.items() if domain.endswith(k)), domain.upper()
+            )
+            badge_class = f"outlet social social-{badge_text.lower()}"
+        else:
+            badge_text = _source_name(r.get("url", ""))
+            badge_class = "outlet official" if badge == "official" else "outlet"
         date = r.get("published_date", "")
         date_html = f'<span class="date">{html.escape(date)}</span>' if date else ""
         content = html.escape(r.get("content", "").strip()[:280])
-        badge_class = "outlet official" if official else "outlet"
         cards.append(
             f'<article class="card" style="animation-delay:{i * 40}ms">'
-            f'<div class="card-top"><span class="{badge_class}">{source_name}</span>{date_html}</div>'
+            f'<div class="card-top"><span class="{badge_class}">{html.escape(badge_text)}</span>{date_html}</div>'
             f'<a class="card-title" href="{url}" target="_blank" rel="noopener">{title}</a>'
             f'<p>{content}</p>'
             f'<a class="card-source" href="{url}" target="_blank" rel="noopener">{html.escape(labels["source"])} →</a>'
@@ -253,6 +292,8 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
 .summary p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
 .summary-sources { font-size: 12px !important; color: var(--muted) !important; margin-top: 10px !important; }
 .summary-sources span { font-weight: 700; color: var(--cisco-blue-dark); }
+.summary-sources a { color: var(--cisco-blue-dark); font-weight: 600; text-decoration: none; }
+.summary-sources a:hover { text-decoration: underline; }
 .section-heading {
   font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--muted); margin: 24px 0 12px;
@@ -274,6 +315,12 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
   background: rgba(4,159,217,0.1); padding: 3px 8px; border-radius: 999px;
 }
 .outlet.official { color: #0d7a3f; background: rgba(13,122,63,0.1); }
+.outlet.social { color: #6d28d9; background: rgba(109,40,217,0.1); }
+.outlet.social-linkedin { color: #0a66c2; background: rgba(10,102,194,0.1); }
+.outlet.social-x { color: #0d1a26; background: rgba(13,26,38,0.08); }
+.outlet.social-youtube { color: #cc0000; background: rgba(204,0,0,0.1); }
+.outlet.social-instagram { color: #c1287a; background: rgba(193,40,122,0.1); }
+.outlet.social-facebook { color: #1877f2; background: rgba(24,119,242,0.1); }
 .date { font-size: 12px; color: var(--muted); }
 .card-title { font-weight: 600; text-decoration: none; color: var(--ink); line-height: 1.35; }
 .card-title:hover { color: var(--cisco-blue-dark); }

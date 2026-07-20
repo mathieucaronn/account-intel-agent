@@ -8,7 +8,6 @@ import requests
 SEARCH_URL = "https://api.tavily.com/search"
 TIMEOUT_SECONDS = 30
 NEWS_LOOKBACK_DAYS = 180
-DEFAULT_MAX_RESULTS = 15
 
 _STOPWORDS = {"and", "et", "de", "des", "du", "la", "le", "les", "of", "the"}
 
@@ -29,11 +28,32 @@ OFFICIAL_PRESS_QUERY = {
     "en": "{company} official press release announcement newsroom",
 }
 
-# Grands médias reconnus uniquement (France, États-Unis, Royaume-Uni,
-# presse tech de référence) : on exclut délibérément la presse
-# spécialisée/blogs pour ne garder que des sources grand public de référence.
-MAJOR_NEWS_DOMAINS = (
-    # France
+SOCIAL_QUERY = {
+    "fr": "{company} innovation actualité annonce",
+    "en": "{company} innovation announcement update",
+}
+
+# Réseaux sociaux : pas de scraping ni de connexion à un compte — uniquement
+# ce que l'index de recherche de Tavily a déjà indexé publiquement (comme un
+# moteur de recherche classique), donc pas de risque vis-à-vis des CGU de
+# ces plateformes.
+SOCIAL_DOMAINS = (
+    "linkedin.com",
+    "x.com",
+    "twitter.com",
+    "youtube.com",
+    "instagram.com",
+    "facebook.com",
+)
+
+# Grands médias reconnus uniquement : on exclut délibérément la presse
+# spécialisée/blogs pour ne garder que des sources grand public de
+# référence. Séparé en deux groupes (plutôt qu'une seule liste) car dans un
+# appel unique, les grands médias internationaux (Reuters, WSJ...) noient
+# systématiquement la presse française dans les résultats — deux appels
+# distincts garantissent une vraie place à la presse française, demandée en
+# priorité.
+FRENCH_NEWS_DOMAINS = (
     "lemonde.fr",
     "lefigaro.fr",
     "lesechos.fr",
@@ -44,6 +64,10 @@ MAJOR_NEWS_DOMAINS = (
     "tf1info.fr",
     "usinenouvelle.com",
     "boursorama.com",
+    "lemagit.fr",
+    "channelnews.fr",
+)
+INTERNATIONAL_NEWS_DOMAINS = (
     # États-Unis
     "nytimes.com",
     "wsj.com",
@@ -132,31 +156,85 @@ def _matches_company(text: str, words: tuple) -> bool:
     return primary in text_n and (not rest or any(w in text_n for w in rest))
 
 
+# Titres de pages "hub" (flux/agrégateur d'une valeur boursière ou d'une
+# entreprise) plutôt que de vrais articles datés — n'apparaissent qu'en mode
+# de recherche générale (le mode "news" n'en produit pas).
+_HUB_TITLE_MARKERS = (
+    "direct",
+    "infos",
+    "information",
+    "derniere",
+    "chiffre",
+    "conseil",
+    "enquete",
+    "groupe",
+    "video",
+)
+
+
+def _looks_like_hub_page(title: str, company_normalized: str) -> bool:
+    title_n = _normalize(title)
+    if title_n.strip() == company_normalized:
+        return True
+    if title_n.startswith("actions ") or title_n.startswith("action "):
+        return True
+    if "actualit" in title_n and any(m in title_n for m in _HUB_TITLE_MARKERS):
+        return True
+    return False
+
+
+def _filter_results(results: list, words: tuple, drop_hub_pages: bool = False) -> list:
+    kept = []
+    for r in results:
+        text = r.get("title", "") + " " + r.get("content", "")
+        if not _matches_company(text, words):
+            continue
+        if drop_hub_pages and _looks_like_hub_page(r.get("title", ""), words[0]):
+            continue
+        kept.append(r)
+    return kept
+
+
 def collect_press(
-    client: TavilyClient, company: str, lang: str, max_results: int = DEFAULT_MAX_RESULTS
+    client: TavilyClient,
+    company: str,
+    lang: str,
+    french_max_results: int = 10,
+    international_max_results: int = 6,
 ) -> dict:
     """Retourne les articles de presse récents sur `company`, restreints aux
-    grands médias mondiaux (France, États-Unis, Royaume-Uni, presse tech),
-    avec un résumé du jour généré par Tavily.
+    grands médias (presse française en priorité, complétée par les grands
+    médias États-Unis/Royaume-Uni/tech), avec un résumé du jour généré par
+    Tavily.
 
     Retourne {"results": [...], "answer": str | None}.
     """
     query = NEWS_QUERY[lang].format(company=company)
-    data = client.search(
+    words = _name_words(company)
+
+    # Le mode "news" de Tavily a un index très pauvre sur les seuls domaines
+    # français (déjà constaté : dérive systématique vers du hors-sujet, quel
+    # que soit le texte de la requête) ; le mode général y est nettement
+    # plus fiable, au prix de l'absence de date de publication.
+    french_data = client.search(
         query,
-        topic="news",
-        max_results=max_results,
-        include_domains=MAJOR_NEWS_DOMAINS,
+        topic="general",
+        max_results=french_max_results,
+        include_domains=FRENCH_NEWS_DOMAINS,
         include_answer=True,
     )
-    results = data.get("results", [])
-    words = _name_words(company)
-    filtered = [
-        r
-        for r in results
-        if _matches_company(r.get("title", "") + " " + r.get("content", ""), words)
-    ]
-    return {"results": filtered, "answer": data.get("answer") or None}
+    intl_data = client.search(
+        query,
+        topic="news",
+        max_results=international_max_results,
+        include_domains=INTERNATIONAL_NEWS_DOMAINS,
+        include_answer=True,
+    )
+
+    french_results = _filter_results(french_data.get("results", []), words, drop_hub_pages=True)
+    intl_results = _filter_results(intl_data.get("results", []), words)
+    answer = french_data.get("answer") or intl_data.get("answer") or None
+    return {"results": french_results + intl_results, "answer": answer}
 
 
 def collect_official_press(
@@ -166,10 +244,17 @@ def collect_official_press(
     (site officiel, newsroom), sans restriction de domaine."""
     query = OFFICIAL_PRESS_QUERY[lang].format(company=company)
     data = client.search(query, topic="general", max_results=max_results)
-    results = data.get("results", [])
     words = _name_words(company)
-    return [
-        r
-        for r in results
-        if _matches_company(r.get("title", "") + " " + r.get("content", ""), words)
-    ]
+    return _filter_results(data.get("results", []), words, drop_hub_pages=True)
+
+
+def collect_social(client: TavilyClient, company: str, lang: str, max_results: int = 10) -> list:
+    """Retourne des publications publiques (LinkedIn, X, YouTube, Instagram,
+    Facebook) mentionnant l'entreprise, telles qu'indexées par Tavily —
+    aucune connexion ni automatisation de ces plateformes."""
+    query = SOCIAL_QUERY[lang].format(company=company)
+    data = client.search(
+        query, topic="general", max_results=max_results, include_domains=SOCIAL_DOMAINS
+    )
+    words = _name_words(company)
+    return _filter_results(data.get("results", []), words)
