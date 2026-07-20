@@ -11,9 +11,12 @@ automatiquement, sans intervention manuelle une fois configuré.
 ## Ce que montre le dashboard
 
 Une page avec un onglet par client suivi, et pour chacun :
-un **résumé du jour** (avec ses sources), les **grands titres** datés issus
-des grands médias (titre, média, date, extrait, lien), et les
-**communiqués officiels** publiés par l'entreprise elle-même.
+un **résumé du jour** (avec ses sources cliquables), les **grands titres**
+datés issus des grands médias — presse française en priorité (Les Echos,
+Le Figaro, Le Monde, L'Usine Nouvelle, LeMagIT, ChannelNews...) complétée
+par la presse États-Unis/Royaume-Uni/tech de référence — les **communiqués
+officiels** de l'entreprise, et ses **publications sur les réseaux sociaux**
+publics (LinkedIn, X, YouTube, Instagram, Facebook).
 
 ## Fonctionnement
 
@@ -21,10 +24,12 @@ des grands médias (titre, média, date, extrait, lien), et les
 clients.json (liste des clients suivis)
       │
       ▼
-1. Presse grand public (Tavily)   ── par client, filtrée aux grands médias mondiaux
-2. Communiqués officiels (Tavily) ── par client, sur le site de l'entreprise
-3. Rendu HTML statique            ── docs/index.html
-4. GitHub Actions (quotidien)     ── régénère et republie automatiquement
+1. Presse française (Tavily)      ── par client, en priorité
+2. Presse internationale (Tavily) ── par client, en complément
+3. Communiqués officiels (Tavily) ── par client, sur le site de l'entreprise
+4. Réseaux sociaux (Tavily)       ── par client, contenu public déjà indexé
+5. Rendu HTML statique            ── docs/index.html
+6. GitHub Actions (quotidien)     ── régénère et republie automatiquement
 ```
 
 Python pur, 2 dépendances (`requests`, `python-dotenv`), pas de framework
@@ -105,11 +110,14 @@ dashboard avec la nouvelle liste.
 ## Respect des sources
 
 - ✅ API de recherche officielle (Tavily), limitée à une liste de grands
-  médias reconnus (voir `MAJOR_NEWS_DOMAINS` dans
-  [account_intel/search.py](account_intel/search.py))
+  médias reconnus (voir `FRENCH_NEWS_DOMAINS` / `INTERNATIONAL_NEWS_DOMAINS`
+  dans [account_intel/search.py](account_intel/search.py))
 - ✅ Chaque article pointe vers sa source d'origine
-- ❌ Pas de scraping de LinkedIn ni d'aucune plateforme l'interdisant dans
-  ses CGU
+- ✅ Réseaux sociaux : aucune connexion, aucune automatisation de navigateur
+  — uniquement du contenu public déjà indexé par Tavily, comme le ferait
+  n'importe quel moteur de recherche
+- ❌ Pas de scraping de LinkedIn (au sens automatisation de compte) ni
+  d'aucune plateforme l'interdisant dans ses CGU
 
 ## Limites connues
 
@@ -137,9 +145,15 @@ dashboard avec la nouvelle liste.
 - Habillage visuel inspiré des couleurs et du motif « onde sonore » de
   Cisco (dessiné en CSS, pas le logo déposé) à titre de projet de stage
   personnel ; ce n'est pas un produit officiel Cisco.
-- Avec ~21 clients suivis × 2 requêtes chacun, l'automatisation quotidienne
-  consomme une quantité significative du quota Tavily gratuit sur un mois :
-  à surveiller si le plan gratuit ne suffit plus.
+- ⚠️ Avec ~21 clients suivis × 4 requêtes chacun (presse FR, presse
+  internationale, communiqués officiels, réseaux sociaux), l'automatisation
+  quotidienne consomme environ 84 requêtes/jour, soit ~2 500/mois : à
+  surveiller de près, un plan Tavily gratuit standard (souvent ~1 000/mois)
+  risque d'être dépassé en cours de mois, ce qui ferait échouer le
+  rafraîchissement quotidien jusqu'au mois suivant. Si ça arrive : passer à
+  un plan Tavily payant, réduire la fréquence du cron dans
+  `.github/workflows/refresh-dashboard.yml`, ou réduire le nombre de
+  clients suivis.
 
 ## Licence
 
