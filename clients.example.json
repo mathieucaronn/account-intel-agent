@@ -1,10 +1,12 @@
 [
   {
-    "name": "Doctolib",
-    "executives": ["Stanislas Niox-Chateau"]
+    "name": "Microsoft",
+    "executives": [
+      { "name": "Bill Gates", "linkedin_username": "williamhgates" }
+    ]
   },
   {
     "name": "Datadog",
-    "executives": ["Olivier Pomel"]
+    "executives": []
   }
 ]

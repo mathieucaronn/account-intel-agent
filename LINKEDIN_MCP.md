@@ -1,61 +1,74 @@
-# Extension LinkedIn (expérimentale, hors CGU) ⚠️
+# Extension LinkedIn (expérimentale, hors CGU) ⚠️ — désactivée pour ce projet
 
-Cette extension est **désactivée par défaut**. Elle existe pour les
-personnes qui, en connaissance de cause, veulent enrichir le dashboard avec
-des données de profils LinkedIn de dirigeants — au prix d'une non-conformité
-aux CGU LinkedIn.
+Cette extension est **désactivée par défaut**, et volontairement **non
+utilisée** dans ce projet (livrable évalué par un tuteur de stage : le risque
+et l'image renvoyée ne se justifient pas pour cette fonctionnalité). Elle
+reste documentée et disponible dans le code pour qui voudrait l'activer en
+toute connaissance de cause, sur un projet personnel.
 
-## Pourquoi ce n'est pas conforme
+## Deux serveurs MCP évalués, deux problèmes différents
 
-Le serveur MCP utilisé en exemple ([felipfr/linkedin-mcpserver](https://github.com/felipfr/linkedin-mcpserver))
-propose de la recherche/récupération de profils et de la messagerie. Ces
-fonctionnalités ne sont **pas** accessibles via l'API officielle LinkedIn pour
-un usage tiers standard (elles nécessitent un partenariat LinkedIn encadré).
-Un serveur qui les propose sans un tel partenariat s'appuie très
-vraisemblablement sur les **identifiants d'un compte personnel** (cookie de
-session) pour automatiser la navigation — ce qui contrevient à l'article 8.2
-du [LinkedIn User Agreement](https://www.linkedin.com/legal/user-agreement)
+**[felipfr/linkedin-mcpserver](https://github.com/felipfr/linkedin-mcpserver)**
+(premier essai) : prétend utiliser l'API officielle LinkedIn via OAuth 2.0,
+mais avec un type d'authentification (`client_credentials`) que LinkedIn ne
+supporte pas pour les applications tierces standard, et des endpoints
+(`/search/people`, `/messages`, `/connections`...) réservés à des
+partenariats LinkedIn encadrés. **Non fonctionnel en pratique**, quelle que
+soit la configuration. Ne propose de toute façon aucun outil pour récupérer
+des posts.
+
+**[stickerdaniel/linkedin-mcp-server](https://github.com/stickerdaniel/linkedin-mcp-server)**
+(second essai, celui ciblé par le code actuel) : celui-ci **fonctionne
+réellement** — il expose `get_person_profile` avec une section `posts`. Mais
+il n'utilise pas l'API LinkedIn : il pilote un navigateur Chromium automatisé
+(« Patchright », conçu pour échapper à la détection anti-bot) avec la
+session LinkedIn personnelle de l'utilisateur (connexion réelle ou cookies
+importés d'un navigateur déjà connecté). Cela contrevient à l'article 8.2 du
+[LinkedIn User Agreement](https://www.linkedin.com/legal/user-agreement)
 (interdiction du scraping et de l'automatisation).
 
 **Conséquences possibles :** suspension ou bannissement du compte LinkedIn
-utilisé, et plus largement non-respect des conditions d'utilisation d'un
-service tiers. Cette extension est fournie « en l'état », sans garantie, pour
-un usage personnel et à vos risques.
+utilisé pour la connexion. Cette extension est fournie « en l'état », sans
+garantie, pour un usage personnel et à vos risques.
 
 ## Ce que fait (et ne fait pas) ce dépôt
 
-- Ce dépôt **ne contient aucun identifiant LinkedIn** et **n'embarque pas** le
-  code du serveur `linkedin-mcpserver`.
+- Ce dépôt **ne contient aucun identifiant LinkedIn** et **n'embarque pas**
+  le code du serveur tiers.
 - [`account_intel/linkedin_optional.py`](account_intel/linkedin_optional.py)
-  est un **client MCP générique** : il lance en sous-processus la commande
-  que vous configurez, découvre dynamiquement les tools exposés (`list_tools`)
-  et choisit heuristiquement celui qui ressemble à une recherche de profil.
-  Rien n'est codé en dur sur le protocole propriétaire du serveur tiers.
-- Ce module n'est appelé que pour les dirigeants listés dans le champ
-  `"executives"` de chaque client de `clients.json`, et seulement si
+  cible le tool `get_person_profile` (paramètre `linkedin_username`,
+  `sections=posts`) avec un repli générique par découverte dynamique
+  (`list_tools`) si le nom ou le schéma diffère selon la version du serveur.
+- Ce module n'est appelé que pour les dirigeants ayant un
+  `"linkedin_username"` renseigné dans `clients.json`, et seulement si
   `LINKEDIN_MCP_COMMAND` est configuré dans `.env`.
 
-## Installation (à vos risques)
+## Installation (à vos risques, hors cadre de ce projet)
 
-1. Clonez et configurez séparément
-   [felipfr/linkedin-mcpserver](https://github.com/felipfr/linkedin-mcpserver)
-   selon ses propres instructions. Ses identifiants restent dans **son**
-   `.env`, jamais dans celui de ce projet.
-2. Dans ce projet :
-   ```bash
-   pip install -r requirements-linkedin.txt
-   ```
+1. `pip install -r requirements-linkedin.txt` (nécessite Python 3.10+ — le
+   paquet `mcp` ne fonctionne pas sous Python 3.9).
+2. Installez [uv](https://docs.astral.sh/uv/getting-started/installation/)
+   (fournit `uvx`).
 3. Dans votre `.env` :
    ```
-   LINKEDIN_MCP_COMMAND=node /chemin/vers/linkedin-mcpserver/build/index.js
+   LINKEDIN_MCP_COMMAND=uvx mcp-server-linkedin@latest
    ```
+4. Premier lancement : une fenêtre de navigateur s'ouvre pour vous connecter
+   à LinkedIn avec votre compte (`uvx mcp-server-linkedin@latest --login`).
+   La session est ensuite sauvegardée dans `~/.linkedin-mcp/profile/`.
 
 ## Utilisation
 
-Ajoutez les dirigeants à suivre dans `clients.json` :
+Ajoutez l'identifiant LinkedIn (partie après `linkedin.com/in/`, ex.
+`williamhgates`) des dirigeants à suivre dans `clients.json` :
 
 ```json
-[{ "name": "Doctolib", "executives": ["Jane Doe"] }]
+[
+  {
+    "name": "Doctolib",
+    "executives": [{ "name": "Jane Doe", "linkedin_username": "janedoe" }]
+  }
+]
 ```
 
 Puis lancez normalement :

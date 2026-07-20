@@ -1,53 +1,55 @@
-"""Connecteur OPTIONNEL vers un serveur MCP tiers (ex. felipfr/linkedin-mcpserver)
-pour récupérer des informations de profils LinkedIn de dirigeants.
+"""Connecteur OPTIONNEL vers un serveur MCP tiers pour récupérer les posts
+LinkedIn récents d'un dirigeant (par défaut : stickerdaniel/linkedin-mcp-server).
 
 ⚠️  NON CONFORME AUX CGU DE LINKEDIN — désactivé par défaut, non installé par
 défaut, non recommandé pour un usage en équipe ou en production.
 
-Les serveurs MCP « LinkedIn » de ce type n'utilisent en général PAS l'API
-officielle LinkedIn pour la recherche/récupération de profils ou l'envoi de
-messages (ces usages sont réservés à des partenariats LinkedIn encadrés).
-Ils s'appuient typiquement sur les identifiants d'un compte personnel (cookie
-de session) pour automatiser la navigation, ce qui contrevient à l'article
-8.2 du LinkedIn User Agreement (interdiction du scraping et de
-l'automatisation) et expose ce compte à un bannissement.
+Ce serveur n'utilise PAS l'API officielle LinkedIn : il pilote un navigateur
+Chromium automatisé (Patchright, conçu pour échapper à la détection anti-bot)
+avec la session LinkedIn personnelle de l'utilisateur (connexion réelle ou
+cookies importés d'un navigateur déjà connecté). Cela contrevient à
+l'article 8.2 du LinkedIn User Agreement (interdiction du scraping et de
+l'automatisation) et expose le compte utilisé à une restriction/bannissement.
+Voir LINKEDIN_MCP.md.
 
-Ce module ne fait AUCUNE hypothèse figée sur le nom exact des tools exposés
-par le serveur tiers (non documenté publiquement) : il les découvre à chaque
-connexion via `list_tools()` et choisit heuristiquement celui qui ressemble
-le plus à une recherche/récupération de profil. Voir LINKEDIN_MCP.md pour
-l'installation du serveur tiers, qui reste un projet externe avec ses propres
-identifiants (jamais stockés dans ce dépôt).
+Le tool ciblé est `get_person_profile` (paramètre `linkedin_username`,
+`sections="posts"`), avec repli générique (découverte via `list_tools()`) si
+le nom ou le schéma du tool diffère selon la version du serveur installé.
 """
 
 import asyncio
 import shlex
 
+PREFERRED_TOOL_NAME = "get_person_profile"
+PREFERRED_ARG_NAME = "linkedin_username"
+POSTS_SECTIONS = "posts"
+
 PROFILE_TOOL_HINTS = ("profile", "person")
 EXCLUDED_HINTS = ("message", "job")
-QUERY_ARG_CANDIDATES = ("query", "name", "keywords", "search", "q", "url")
+QUERY_ARG_CANDIDATES = ("linkedin_username", "query", "username", "name", "url")
 
 
 class LinkedInMCPError(Exception):
     """Erreur de connexion ou d'appel au serveur MCP LinkedIn tiers."""
 
 
-def fetch_profile(command: str, person_query: str) -> dict:
-    """Interroge le serveur MCP tiers pour un dirigeant donné.
+def fetch_profile(command: str, linkedin_username: str) -> dict:
+    """Interroge le serveur MCP tiers pour un dirigeant donné (identifié par
+    son nom d'utilisateur LinkedIn, ex. "williamhgates").
 
-    `command` est une commande shell complète (ex. "node build/index.js"),
+    `command` est une commande shell complète (ex. "uvx mcp-server-linkedin@latest"),
     lancée en sous-processus via le protocole MCP (stdio). Lève
     LinkedInMCPError en cas d'échec ; ne lève jamais d'autre exception.
     """
     try:
-        return asyncio.run(_fetch_async(command, person_query))
+        return asyncio.run(_fetch_async(command, linkedin_username))
     except LinkedInMCPError:
         raise
     except Exception as exc:  # protocole/sous-processus tiers non garanti
         raise LinkedInMCPError(f"Erreur MCP LinkedIn : {exc}") from exc
 
 
-async def _fetch_async(command: str, person_query: str) -> dict:
+async def _fetch_async(command: str, linkedin_username: str) -> dict:
     try:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
@@ -70,15 +72,23 @@ async def _fetch_async(command: str, person_query: str) -> dict:
             if tool is None:
                 available = ", ".join(t.name for t in tools) or "(aucun)"
                 raise LinkedInMCPError(
-                    "Aucun tool de type recherche/récupération de profil "
-                    f"trouvé parmi les tools exposés : {available}"
+                    "Aucun tool de type récupération de profil trouvé parmi "
+                    f"les tools exposés : {available}"
                 )
-            arg_name = _guess_query_arg(tool)
-            result = await session.call_tool(tool.name, {arg_name: person_query})
+
+            arg_name = _pick_arg_name(tool)
+            call_args = {arg_name: linkedin_username}
+            if tool.name == PREFERRED_TOOL_NAME:
+                call_args["sections"] = POSTS_SECTIONS
+
+            result = await session.call_tool(tool.name, call_args)
             return {"tool": tool.name, "content": _stringify(result)}
 
 
 def _pick_profile_tool(tools):
+    by_name = {t.name: t for t in tools}
+    if PREFERRED_TOOL_NAME in by_name:
+        return by_name[PREFERRED_TOOL_NAME]
     for tool in tools:
         name = tool.name.lower()
         if any(h in name for h in PROFILE_TOOL_HINTS) and not any(
@@ -88,13 +98,13 @@ def _pick_profile_tool(tools):
     return None
 
 
-def _guess_query_arg(tool) -> str:
+def _pick_arg_name(tool) -> str:
     schema = getattr(tool, "inputSchema", None) or {}
     props = schema.get("properties", {}) if isinstance(schema, dict) else {}
     for candidate in QUERY_ARG_CANDIDATES:
         if candidate in props:
             return candidate
-    return next(iter(props), "query")
+    return next(iter(props), PREFERRED_ARG_NAME)
 
 
 def _stringify(result) -> str:

@@ -10,9 +10,23 @@ class ClientsConfigError(Exception):
 
 
 @dataclass
+class Executive:
+    name: str
+    linkedin_username: str = ""  # partie après linkedin.com/in/, ex. "williamhgates"
+
+
+@dataclass
 class Client:
     name: str
-    executives: list
+    executives: list  # list[Executive]
+
+
+def _parse_executive(entry) -> Executive:
+    if isinstance(entry, str):
+        return Executive(name=entry, linkedin_username=entry)
+    return Executive(
+        name=entry.get("name", ""), linkedin_username=entry.get("linkedin_username", "")
+    )
 
 
 def load_clients(path: str) -> list:
@@ -27,7 +41,10 @@ def load_clients(path: str) -> list:
     except json.JSONDecodeError as exc:
         raise ClientsConfigError(f"{path} n'est pas un JSON valide : {exc}") from exc
     return [
-        Client(name=entry["name"], executives=list(entry.get("executives", [])))
+        Client(
+            name=entry["name"],
+            executives=[_parse_executive(e) for e in entry.get("executives", [])],
+        )
         for entry in raw
     ]
 
@@ -43,7 +60,16 @@ def add_client(name: str, path: str) -> None:
 
 
 def save_clients(clients: list, path: str) -> None:
-    payload = [{"name": c.name, "executives": c.executives} for c in clients]
+    payload = [
+        {
+            "name": c.name,
+            "executives": [
+                {"name": e.name, "linkedin_username": e.linkedin_username}
+                for e in c.executives
+            ],
+        }
+        for c in clients
+    ]
     Path(path).write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )

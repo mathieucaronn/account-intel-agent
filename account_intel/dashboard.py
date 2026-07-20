@@ -20,6 +20,7 @@ LABELS = {
         "linkedin_disabled": "Extension LinkedIn non configurée (LINKEDIN_MCP_COMMAND absent du .env). Voir LINKEDIN_MCP.md.",
         "linkedin_disclaimer": "⚠️ Source non officielle, hors CGU LinkedIn (voir LINKEDIN_MCP.md).",
         "linkedin_error": "Échec de récupération : {error}",
+        "linkedin_username_missing": "Identifiant LinkedIn manquant (champ linkedin_username dans clients.json).",
         "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json (voir clients.example.json) ou lancez avec des noms d'entreprise en argument.",
         "source": "Source",
         "search_placeholder": "Rechercher une entreprise...",
@@ -38,6 +39,7 @@ LABELS = {
         "linkedin_disabled": "LinkedIn extension not configured (LINKEDIN_MCP_COMMAND missing from .env). See LINKEDIN_MCP.md.",
         "linkedin_disclaimer": "⚠️ Unofficial source, outside LinkedIn ToS (see LINKEDIN_MCP.md).",
         "linkedin_error": "Fetch failed: {error}",
+        "linkedin_username_missing": "Missing LinkedIn username (linkedin_username field in clients.json).",
         "no_clients": "No tracked clients. Add some in clients.json (see clients.example.json) or run with company names as arguments.",
         "source": "Source",
         "search_placeholder": "Search for a company...",
@@ -74,14 +76,17 @@ def collect_client(
     if not linkedin_command:
         return data
 
-    for person in executives:
+    for exec_ in executives:
+        if not exec_.linkedin_username:
+            data.linkedin.append({"person": exec_.name, "status": "unconfigured"})
+            continue
         try:
             result = linkedin_optional.fetch_profile(
-                linkedin_command, f"{person} {client_name}"
+                linkedin_command, exec_.linkedin_username
             )
-            data.linkedin.append({"person": person, "status": "ok", **result})
+            data.linkedin.append({"person": exec_.name, "status": "ok", **result})
         except linkedin_optional.LinkedInMCPError as exc:
-            data.linkedin.append({"person": person, "status": "error", "error": str(exc)})
+            data.linkedin.append({"person": exec_.name, "status": "error", "error": str(exc)})
 
     return data
 
@@ -185,6 +190,8 @@ def render_linkedin(client: ClientData, labels: dict, linkedin_enabled: bool) ->
         person = html.escape(entry["person"])
         if entry["status"] == "error":
             body = f'<p class="error">{html.escape(labels["linkedin_error"].format(error=entry["error"]))}</p>'
+        elif entry["status"] == "unconfigured":
+            body = f'<p class="empty">{html.escape(labels["linkedin_username_missing"])}</p>'
         else:
             body = f'<p>{html.escape(entry.get("content", "")[:800])}</p>'
         cards.append(f'<article class="card"><h4>{person}</h4>{body}</article>')
