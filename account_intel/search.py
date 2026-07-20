@@ -2,12 +2,13 @@
 
 import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 
 import requests
 
 SEARCH_URL = "https://api.tavily.com/search"
 TIMEOUT_SECONDS = 30
-NEWS_LOOKBACK_DAYS = 180
+NEWS_LOOKBACK_DAYS = 14
 
 _STOPWORDS = {"and", "et", "de", "des", "du", "la", "le", "les", "of", "the"}
 
@@ -248,6 +249,22 @@ def _with_extracted_dates(results: list) -> list:
     return results
 
 
+def _enforce_recency(results: list, days: int = NEWS_LOOKBACK_DAYS) -> list:
+    """Écarte tout résultat dont la date (native Tavily ou extraite du texte)
+    est plus vieille que `days` jours. Le paramètre `days` envoyé à Tavily
+    pour le mode "news" n'est pas toujours respecté à la lettre (déjà
+    constaté : des résultats de 2009, 2017, 2019 malgré `days=14`) — ce
+    filtre est donc la garantie réelle, pas Tavily. Un résultat sans date
+    connue est conservé (on ne peut pas prouver qu'il est ancien)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    kept = []
+    for r in results:
+        normalized = _extract_date(r.get("published_date", "") or "")
+        if not normalized or normalized >= cutoff:
+            kept.append(r)
+    return kept
+
+
 def collect_press(
     client: TavilyClient,
     company: str,
@@ -279,7 +296,7 @@ def collect_press(
         include_domains=INTERNATIONAL_NEWS_DOMAINS,
         include_answer=True,
     )
-    intl_results = _filter_results(intl_data.get("results", []), words)
+    intl_results = _enforce_recency(_filter_results(intl_data.get("results", []), words))
 
     if lang != "fr":
         return {"results": intl_results, "answer": intl_data.get("answer") or None}
@@ -296,8 +313,10 @@ def collect_press(
         include_domains=FRENCH_NEWS_DOMAINS,
         include_answer=True,
     )
-    french_results = _with_extracted_dates(
-        _filter_results(french_data.get("results", []), words, drop_hub_pages=True)
+    french_results = _enforce_recency(
+        _with_extracted_dates(
+            _filter_results(french_data.get("results", []), words, drop_hub_pages=True)
+        )
     )
     answer = french_data.get("answer") or intl_data.get("answer") or None
     return {"results": french_results + intl_results, "answer": answer}
@@ -314,7 +333,7 @@ def collect_official_press(
     query = OFFICIAL_PRESS_QUERY[lang].format(company=company)
     data = client.search(query, topic="news", max_results=max_results)
     words = _name_words(company)
-    return _filter_results(data.get("results", []), words)
+    return _enforce_recency(_filter_results(data.get("results", []), words))
 
 
 def collect_social(client: TavilyClient, company: str, lang: str, max_results: int = 10) -> list:
@@ -326,5 +345,5 @@ def collect_social(client: TavilyClient, company: str, lang: str, max_results: i
         query, topic="general", max_results=max_results, include_domains=SOCIAL_DOMAINS
     )
     words = _name_words(company)
-    results = _filter_results(data.get("results", []), words)
-    return _with_extracted_dates(results)
+    results = _with_extracted_dates(_filter_results(data.get("results", []), words))
+    return _enforce_recency(results)
