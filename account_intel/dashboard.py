@@ -17,12 +17,13 @@ LABELS = {
         "summary_heading": "Résumé du jour",
         "sources_label": "Sources",
         "headlines_heading": "Grands titres",
-        "official_heading": "Communiqués officiels de l'entreprise",
+        "official_heading": "Annonces & communiqués",
         "social_heading": "Réseaux sociaux",
         "no_press": "Aucun article trouvé dans les grands médias suivis pour cette entreprise.",
         "press_error": "Recherche presse indisponible : {error}",
         "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json.",
         "source": "Lire l'article",
+        "no_date": "Date inconnue",
     },
     "en": {
         "title": "Cisco Manufacturing — Account News",
@@ -31,12 +32,13 @@ LABELS = {
         "summary_heading": "Today's summary",
         "sources_label": "Sources",
         "headlines_heading": "Top headlines",
-        "official_heading": "Official company announcements",
+        "official_heading": "Announcements & press coverage",
         "social_heading": "Social media",
         "no_press": "No articles found in tracked major outlets for this company.",
         "press_error": "Press search unavailable: {error}",
         "no_clients": "No tracked clients. Add some in clients.json.",
         "source": "Read article",
+        "no_date": "Date unknown",
     },
 }
 
@@ -210,7 +212,9 @@ def _render_cards(results: list, labels: dict, badge: str = "press") -> str:
             badge_text = _source_name(r.get("url", ""))
             badge_class = "outlet official" if badge == "official" else "outlet"
         date = r.get("published_date", "")
-        date_html = f'<span class="date">{html.escape(date)}</span>' if date else ""
+        date_text = date if date else labels["no_date"]
+        date_class = "date" if date else "date date-unknown"
+        date_html = f'<span class="{date_class}">{html.escape(date_text)}</span>'
         content = html.escape(r.get("content", "").strip()[:280])
         cards.append(
             f'<article class="card" style="animation-delay:{i * 40}ms">'
@@ -322,6 +326,7 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
 .outlet.social-instagram { color: #c1287a; background: rgba(193,40,122,0.1); }
 .outlet.social-facebook { color: #1877f2; background: rgba(24,119,242,0.1); }
 .date { font-size: 12px; color: var(--muted); }
+.date-unknown { font-style: italic; opacity: 0.6; }
 .card-title { font-weight: 600; text-decoration: none; color: var(--ink); line-height: 1.35; }
 .card-title:hover { color: var(--cisco-blue-dark); }
 .card p { font-size: 13.5px; line-height: 1.55; margin: 0; color: var(--muted); flex-grow: 1; }

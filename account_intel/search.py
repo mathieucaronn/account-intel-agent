@@ -217,6 +217,7 @@ _MONTHS = {
 _DATE_DMY_RE = re.compile(r"\b(\d{1,2})(?:er)?\s+([A-Za-zéûôîàè]{3,10})\.?\s+(\d{4})\b")
 _DATE_MDY_RE = re.compile(r"\b([A-Za-zéûôîàè]{3,10})\.?\s+(\d{1,2}),?\s+(\d{4})\b")
 _DATE_ISO_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+_DATE_NUMERIC_RE = re.compile(r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b")
 
 
 def _extract_date(text: str) -> str:
@@ -232,6 +233,11 @@ def _extract_date(text: str) -> str:
         month = _MONTHS.get(_normalize(month_raw).strip())
         if month and 1 <= int(day) <= 31 and 2000 <= int(year) <= 2100:
             return f"{int(year):04d}-{month:02d}-{int(day):02d}"
+    numeric = _DATE_NUMERIC_RE.search(text)
+    if numeric:
+        day, month, year = (int(g) for g in numeric.groups())
+        if 1 <= day <= 31 and 1 <= month <= 12 and 2000 <= year <= 2100:
+            return f"{year:04d}-{month:02d}-{day:02d}"
     return ""
 
 
@@ -298,15 +304,17 @@ def collect_press(
 
 
 def collect_official_press(
-    client: TavilyClient, company: str, lang: str, max_results: int = 6
+    client: TavilyClient, company: str, lang: str, max_results: int = 8
 ) -> list:
-    """Retourne des communiqués/annonces publiés par l'entreprise elle-même
-    (site officiel, newsroom), sans restriction de domaine."""
+    """Retourne des annonces et communiqués concernant l'entreprise (mode
+    "news" de Tavily, sans restriction de domaine) : contrairement au mode
+    général, celui-ci fournit des dates de publication fiables. Le contenu
+    peut relayer l'annonce via un tiers (agence, presse spécialisée) plutôt
+    que provenir uniquement du site de l'entreprise elle-même."""
     query = OFFICIAL_PRESS_QUERY[lang].format(company=company)
-    data = client.search(query, topic="general", max_results=max_results)
+    data = client.search(query, topic="news", max_results=max_results)
     words = _name_words(company)
-    results = _filter_results(data.get("results", []), words, drop_hub_pages=True)
-    return _with_extracted_dates(results)
+    return _filter_results(data.get("results", []), words)
 
 
 def collect_social(client: TavilyClient, company: str, lang: str, max_results: int = 10) -> list:
