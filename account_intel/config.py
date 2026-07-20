@@ -30,7 +30,7 @@ def load_settings() -> Settings:
             "Copiez .env.example vers .env et renseignez vos clés."
         )
 
-    default_lang = os.getenv("DEFAULT_LANG", "fr").strip().lower()
+    default_lang = os.getenv("DEFAULT_LANG", "").strip().lower() or "fr"
     if default_lang not in SUPPORTED_LANGS:
         raise ConfigError(
             f"DEFAULT_LANG={default_lang!r} non supporté (valeurs possibles : "

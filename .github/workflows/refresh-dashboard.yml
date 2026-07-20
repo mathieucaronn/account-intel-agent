@@ -24,6 +24,10 @@ jobs:
         run: python -m account_intel --out docs/index.html
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          # "fr" (par défaut) ou "en" — dashboard entièrement dans une langue
+          # ou l'autre. Se configure dans Settings → Secrets and variables →
+          # Actions → Variables (pas un secret, pas sensible).
+          DEFAULT_LANG: ${{ vars.DEFAULT_LANG }}
 
       - name: Publie si le contenu a changé
         run: |

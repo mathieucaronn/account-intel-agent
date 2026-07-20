@@ -195,34 +195,77 @@ def _filter_results(results: list, words: tuple, drop_hub_pages: bool = False) -
     return kept
 
 
+# Tavily ne fournit jamais de published_date structurée en mode de recherche
+# générale (communiqués officiels, réseaux sociaux) : on tente d'en extraire
+# une du texte lui-même (souvent présente, ex. "13 février 2026", "27 Sep
+# 2019"), en best-effort — absente si le texte ne contient pas de date
+# reconnaissable.
+_MONTHS = {
+    "janvier": 1, "janv": 1, "jan": 1,
+    "fevrier": 2, "fev": 2, "fevr": 2, "feb": 2, "february": 2,
+    "mars": 3, "mar": 3, "march": 3,
+    "avril": 4, "avr": 4, "apr": 4, "april": 4,
+    "mai": 5, "may": 5,
+    "juin": 6, "jun": 6, "june": 6,
+    "juillet": 7, "juil": 7, "jul": 7, "july": 7,
+    "aout": 8, "aug": 8, "august": 8,
+    "septembre": 9, "sept": 9, "sep": 9, "september": 9,
+    "octobre": 10, "oct": 10, "october": 10,
+    "novembre": 11, "nov": 11, "november": 11,
+    "decembre": 12, "dec": 12, "december": 12,
+}
+_DATE_DMY_RE = re.compile(r"\b(\d{1,2})(?:er)?\s+([A-Za-zéûôîàè]{3,10})\.?\s+(\d{4})\b")
+_DATE_MDY_RE = re.compile(r"\b([A-Za-zéûôîàè]{3,10})\.?\s+(\d{1,2}),?\s+(\d{4})\b")
+_DATE_ISO_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+
+def _extract_date(text: str) -> str:
+    iso = _DATE_ISO_RE.search(text)
+    if iso:
+        return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
+    for pattern, order in ((_DATE_DMY_RE, "dmy"), (_DATE_MDY_RE, "mdy")):
+        match = pattern.search(text)
+        if not match:
+            continue
+        groups = match.groups()
+        day, month_raw, year = groups if order == "dmy" else (groups[1], groups[0], groups[2])
+        month = _MONTHS.get(_normalize(month_raw).strip())
+        if month and 1 <= int(day) <= 31 and 2000 <= int(year) <= 2100:
+            return f"{int(year):04d}-{month:02d}-{int(day):02d}"
+    return ""
+
+
+def _with_extracted_dates(results: list) -> list:
+    for r in results:
+        if not r.get("published_date"):
+            r["published_date"] = _extract_date(r.get("title", "") + " " + r.get("content", ""))
+    return results
+
+
 def collect_press(
     client: TavilyClient,
     company: str,
     lang: str,
     french_max_results: int = 10,
-    international_max_results: int = 6,
+    international_max_results: int = 12,
 ) -> dict:
     """Retourne les articles de presse récents sur `company`, restreints aux
-    grands médias (presse française en priorité, complétée par les grands
-    médias États-Unis/Royaume-Uni/tech), avec un résumé du jour généré par
-    Tavily.
+    grands médias, avec un résumé du jour généré par Tavily.
+
+    En français (`lang="fr"`) : presse française en priorité, complétée par
+    les grands médias États-Unis/Royaume-Uni/tech (couverture mondiale déjà
+    demandée). En anglais (`lang="en"`) : uniquement les médias
+    internationaux, pour un dashboard entièrement en anglais.
 
     Retourne {"results": [...], "answer": str | None}.
     """
     query = NEWS_QUERY[lang].format(company=company)
     words = _name_words(company)
 
-    # Le mode "news" de Tavily a un index très pauvre sur les seuls domaines
-    # français (déjà constaté : dérive systématique vers du hors-sujet, quel
-    # que soit le texte de la requête) ; le mode général y est nettement
-    # plus fiable, au prix de l'absence de date de publication.
-    french_data = client.search(
-        query,
-        topic="general",
-        max_results=french_max_results,
-        include_domains=FRENCH_NEWS_DOMAINS,
-        include_answer=True,
-    )
+    # international_max_results volontairement large : avec une valeur trop
+    # basse, Reuters/WSJ (les mieux classés sur ces mots-clés) monopolisent
+    # les résultats et écrasent la diversité (Bloomberg, CNN, Forbes, BBC,
+    # Guardian, presse tech...).
     intl_data = client.search(
         query,
         topic="news",
@@ -230,9 +273,26 @@ def collect_press(
         include_domains=INTERNATIONAL_NEWS_DOMAINS,
         include_answer=True,
     )
-
-    french_results = _filter_results(french_data.get("results", []), words, drop_hub_pages=True)
     intl_results = _filter_results(intl_data.get("results", []), words)
+
+    if lang != "fr":
+        return {"results": intl_results, "answer": intl_data.get("answer") or None}
+
+    # Le mode "news" de Tavily a un index très pauvre sur les seuls domaines
+    # français (déjà constaté : dérive systématique vers du hors-sujet, quel
+    # que soit le texte de la requête) ; le mode général y est nettement
+    # plus fiable, au prix de l'absence de date de publication structurée
+    # (compensée par extraction de date depuis le texte, voir plus bas).
+    french_data = client.search(
+        query,
+        topic="general",
+        max_results=french_max_results,
+        include_domains=FRENCH_NEWS_DOMAINS,
+        include_answer=True,
+    )
+    french_results = _with_extracted_dates(
+        _filter_results(french_data.get("results", []), words, drop_hub_pages=True)
+    )
     answer = french_data.get("answer") or intl_data.get("answer") or None
     return {"results": french_results + intl_results, "answer": answer}
 
@@ -245,7 +305,8 @@ def collect_official_press(
     query = OFFICIAL_PRESS_QUERY[lang].format(company=company)
     data = client.search(query, topic="general", max_results=max_results)
     words = _name_words(company)
-    return _filter_results(data.get("results", []), words, drop_hub_pages=True)
+    results = _filter_results(data.get("results", []), words, drop_hub_pages=True)
+    return _with_extracted_dates(results)
 
 
 def collect_social(client: TavilyClient, company: str, lang: str, max_results: int = 10) -> list:
@@ -257,4 +318,5 @@ def collect_social(client: TavilyClient, company: str, lang: str, max_results: i
         query, topic="general", max_results=max_results, include_domains=SOCIAL_DOMAINS
     )
     words = _name_words(company)
-    return _filter_results(data.get("results", []), words)
+    results = _filter_results(data.get("results", []), words)
+    return _with_extracted_dates(results)
