@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -18,6 +19,7 @@ class Settings:
     tavily_api_key: str
     default_lang: str
     clients_path: str
+    anthropic_api_key: Optional[str]
 
 
 def load_settings() -> Settings:
@@ -41,4 +43,8 @@ def load_settings() -> Settings:
         tavily_api_key=tavily_key,
         default_lang=default_lang,
         clients_path=os.getenv("CLIENTS_PATH", "").strip() or DEFAULT_CLIENTS_PATH,
+        # Optionnel : résumé du jour croisant presse/communiqués/réseaux
+        # sociaux via Claude (voir account_intel/summary.py). Sans clé, repli
+        # automatique sur le résumé Tavily existant.
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip() or None,
     )

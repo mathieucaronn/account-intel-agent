@@ -37,7 +37,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lang",
         choices=config.SUPPORTED_LANGS,
-        help="langue du dashboard (défaut : DEFAULT_LANG du .env, sinon fr)",
+        help=(
+            "langue affichée par défaut à l'ouverture (défaut : DEFAULT_LANG "
+            "du .env, sinon fr) — un bouton FR/EN sur la page permet de "
+            "basculer, les deux langues sont toujours générées"
+        ),
     )
     parser.add_argument(
         "--out",
@@ -80,11 +84,14 @@ def main(argv=None) -> int:
             file=sys.stderr,
         )
 
+    if settings.anthropic_api_key:
+        print("🧠 Résumé du jour croisé (presse + communiqués + réseaux sociaux) via Claude.")
+
     tavily_client = search.TavilyClient(settings.tavily_api_key)
     clients_data = []
     for name in all_clients:
         print(f"🔎 Collecte pour « {name} »...")
-        data = dashboard.collect_client(tavily_client, name, lang)
+        data = dashboard.collect_client(tavily_client, name, settings.anthropic_api_key)
         if data.press_error:
             print(f"⚠️  {name} : {data.press_error}", file=sys.stderr)
         clients_data.append(data)

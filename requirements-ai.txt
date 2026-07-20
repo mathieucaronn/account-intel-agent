@@ -1,0 +1,4 @@
+# Dépendance optionnelle : résumé du jour croisant presse/communiqués/réseaux
+# sociaux via Claude, au lieu du résumé plus sommaire généré par Tavily.
+# NON installée par défaut. Nécessite ANTHROPIC_API_KEY (console.anthropic.com).
+anthropic>=0.40

@@ -10,13 +10,19 @@ automatiquement, sans intervention manuelle une fois configuré.
 
 ## Ce que montre le dashboard
 
-Une page avec un onglet par client suivi, et pour chacun :
+Une page avec un **bouton FR/EN** (les deux langues sont toujours générées,
+aucun rechargement nécessaire) et un onglet par client suivi. Pour chacun :
 un **résumé du jour** (avec ses sources cliquables), les **grands titres**
 datés issus des grands médias — presse française en priorité (Les Echos,
 Le Figaro, Le Monde, L'Usine Nouvelle, LeMagIT, ChannelNews...) complétée
 par la presse États-Unis/Royaume-Uni/tech de référence — les **communiqués
 officiels** de l'entreprise, et ses **publications sur les réseaux sociaux**
 publics (LinkedIn, X, YouTube, Instagram, Facebook).
+
+Le bouton FR/EN change la langue de l'interface (titres de sections,
+libellés, résumé) ; le contenu des articles reste dans sa langue de
+publication d'origine (traduire le contenu demanderait une IA dédiée, non
+fait ici).
 
 ## Fonctionnement
 
@@ -57,8 +63,9 @@ Renseignez dans `.env` :
 | Variable | Rôle | Où l'obtenir |
 |---|---|---|
 | `TAVILY_API_KEY` | Recherche de presse | [tavily.com](https://tavily.com/) (plan gratuit) |
-| `DEFAULT_LANG` | *(optionnel)* `fr` ou `en` | défaut : `fr` |
+| `DEFAULT_LANG` | *(optionnel)* langue affichée à l'ouverture, `fr` ou `en` | défaut : `fr` |
 | `CLIENTS_PATH` | *(optionnel)* chemin du fichier de clients | défaut : `clients.json` |
+| `ANTHROPIC_API_KEY` | *(optionnel)* résumé du jour croisé par IA | [console.anthropic.com](https://console.anthropic.com/) |
 
 `clients.json` liste les clients suivis (ce fichier est suivi par git — ce
 sont juste des noms d'entreprises, pas des données sensibles) :
@@ -107,12 +114,20 @@ Pour ajouter/retirer un client suivi : éditez `clients.json` sur GitHub (pas
 besoin de repasser en local), le prochain passage du workflow régénère le
 dashboard avec la nouvelle liste.
 
-Pour un dashboard **entièrement en français ou entièrement en anglais**
-(labels, requêtes et sources interrogées) : **Settings → Secrets and
-variables → Actions → onglet Variables** (pas Secrets, `DEFAULT_LANG` n'est
-pas sensible), ajoutez une variable `DEFAULT_LANG` = `fr` ou `en`. En `fr`,
-la presse française reste mélangée aux grands médias internationaux (déjà
-demandé) ; en `en`, seuls les médias internationaux sont interrogés.
+**Langue** : un bouton FR/EN est présent directement sur la page, utilisable
+par n'importe qui sans toucher aux paramètres GitHub. `DEFAULT_LANG`
+(**Settings → Secrets and variables → Actions → onglet Variables**, pas
+Secrets) choisit seulement quelle langue s'affiche à l'ouverture avant tout
+clic.
+
+**Résumé du jour par IA (optionnel)** : par défaut le résumé vient de
+Tavily (gratuit, plus sommaire). Pour un résumé détaillé qui croise
+vraiment presse, communiqués et réseaux sociaux avec ses sources citées à
+la fin : **Settings → Secrets and variables → Actions → Secrets**, ajoutez
+`ANTHROPIC_API_KEY` avec une clé [console.anthropic.com](https://console.anthropic.com/).
+S'active automatiquement au prochain rafraîchissement, sans autre
+changement. Coût : quelques centimes par jour pour ~21 clients (modèle
+Claude Haiku, volontairement économique).
 
 ## Respect des sources
 
@@ -139,11 +154,14 @@ demandé) ; en `en`, seuls les médias internationaux sont interrogés.
 - Risque d'homonymie sur les noms ambigus : précisez si besoin (ex.
   `"Mistral AI"` plutôt que `"Mistral"`, `"TotalEnergies"` plutôt que
   `"Total"`).
-- Le résumé du jour est généré par l'API de recherche (Tavily), pas par un
-  LLM dédié : pas de vraie synthèse croisée multi-articles, et il peut
-  occasionnellement sortir en anglais même pour une recherche en français.
-  Passer sur un vrai résumé par IA (Claude) est possible mais ajoute un coût
-  et une clé API — non fait par défaut, à activer sciemment.
+- Sans `ANTHROPIC_API_KEY`, le résumé du jour est généré par l'API de
+  recherche (Tavily) : pas de vraie synthèse croisée entre presse,
+  communiqués et réseaux sociaux, et il peut occasionnellement sortir en
+  anglais même pour une recherche en français.
+- Le bouton FR/EN traduit l'interface, pas le contenu des articles
+  eux-mêmes (titres/extraits restent dans leur langue de publication
+  d'origine) — traduire le contenu demanderait un appel IA supplémentaire
+  par article, non fait ici pour limiter le coût.
 - Pas de barre de recherche libre sur la page publiée : GitHub Pages ne peut
   exécuter aucun code serveur, et la clé Tavily ne doit jamais être exposée
   côté navigateur. Un vrai correctif existe (petite fonction serverless

@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import search
+from . import search, summary
 
 LABELS = {
     "fr": {
@@ -49,33 +49,83 @@ class ClientData:
     press: list = field(default_factory=list)
     official_press: list = field(default_factory=list)
     social: list = field(default_factory=list)
-    answer: str = None
+    answer: dict = field(default_factory=dict)  # {"fr": "...", "en": "..."}
     press_error: str = None
 
 
-def collect_client(tavily_client: search.TavilyClient, client_name: str, lang: str) -> ClientData:
+def collect_client(
+    tavily_client: search.TavilyClient, client_name: str, anthropic_api_key: str = None
+) -> ClientData:
+    """Collecte presse/communiqués/réseaux sociaux (toujours en français +
+    international, le mode le plus riche) et calcule un résumé du jour dans
+    les deux langues, pour que le bouton FR/EN de la page fonctionne sans
+    re-solliciter Tavily."""
     data = ClientData(name=client_name)
     try:
-        result = search.collect_press(tavily_client, client_name, lang)
+        result = search.collect_press(tavily_client, client_name, "fr")
         data.press = result["results"]
-        data.answer = result["answer"]
+        tavily_answer = result["answer"] or ""
     except search.SearchError as exc:
         data.press_error = str(exc)
         return data
     try:
-        data.official_press = search.collect_official_press(tavily_client, client_name, lang)
+        data.official_press = search.collect_official_press(tavily_client, client_name, "fr")
     except search.SearchError:
         pass  # les communiqués officiels sont un bonus, pas critique
     try:
-        data.social = search.collect_social(tavily_client, client_name, lang)
+        data.social = search.collect_social(tavily_client, client_name, "fr")
     except search.SearchError:
         pass  # idem pour les réseaux sociaux
+
+    for lang in ("fr", "en"):
+        text = ""
+        if anthropic_api_key:
+            try:
+                text = summary.generate_cross_summary(
+                    anthropic_api_key,
+                    client_name,
+                    data.press,
+                    data.official_press,
+                    data.social,
+                    lang,
+                )
+            except summary.SummaryError:
+                text = ""  # repli sur le résumé Tavily ci-dessous
+        data.answer[lang] = text or tavily_answer
     return data
 
 
-def render_html(clients_data: list, lang: str) -> str:
+def render_html(clients_data: list, default_lang: str = "fr") -> str:
+    views = "\n".join(
+        _render_language_view(clients_data, lang, visible=(lang == default_lang))
+        for lang in ("fr", "en")
+    )
+    title = LABELS[default_lang]["title"]
+    return f"""<!DOCTYPE html>
+<html lang="{default_lang}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<style>{_CSS}</style>
+</head>
+<body>
+<div class="lang-switch">
+  <button class="lang-btn" id="lang-btn-fr" onclick="setLang('fr')">FR</button>
+  <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
+</div>
+{views}
+<script>{_JS}</script>
+<script>setLang((function(){{ try {{ return localStorage.getItem('dashboardLang') || '{default_lang}'; }} catch (e) {{ return '{default_lang}'; }} }})());</script>
+</body>
+</html>
+"""
+
+
+def _render_language_view(clients_data: list, lang: str, visible: bool) -> str:
     labels = LABELS[lang]
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    display = "block" if visible else "none"
 
     if not clients_data:
         panels_html = f'<p class="empty">{html.escape(labels["no_clients"])}</p>'
@@ -83,22 +133,14 @@ def render_html(clients_data: list, lang: str) -> str:
     else:
         tabs_html = "\n".join(
             f'<button class="tab{" active" if i == 0 else ""}" '
-            f'onclick="showClient({i})">{html.escape(c.name)}</button>'
+            f'onclick="showClient(\'{lang}\', {i})">{html.escape(c.name)}</button>'
             for i, c in enumerate(clients_data)
         )
         panels_html = "\n".join(
-            _render_panel(c, i, labels) for i, c in enumerate(clients_data)
+            _render_panel(c, i, lang, labels) for i, c in enumerate(clients_data)
         )
 
-    return f"""<!DOCTYPE html>
-<html lang="{lang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(labels['title'])}</title>
-<style>{_CSS}</style>
-</head>
-<body>
+    return f"""<div class="lang-view" id="view-{lang}" style="display:{display}">
 <header>
   <div class="header-inner">
     <div class="brand">
@@ -115,15 +157,12 @@ def render_html(clients_data: list, lang: str) -> str:
 </header>
 <main>{panels_html}</main>
 <footer><p class="meta"><span class="live-dot"></span>{html.escape(labels['generated'].format(date=generated_at))}</p></footer>
-<script>{_JS}</script>
-</body>
-</html>
-"""
+</div>"""
 
 
-def _render_panel(client: ClientData, index: int, labels: dict) -> str:
+def _render_panel(client: ClientData, index: int, lang: str, labels: dict) -> str:
     display = "block" if index == 0 else "none"
-    summary_html = _render_summary(client, labels)
+    summary_html = _render_summary(client, lang, labels)
     press_html = render_press(client, labels)
     headline_heading = "" if not client.press else (
         f'<h3 class="section-heading">{html.escape(labels["headlines_heading"])}</h3>'
@@ -142,7 +181,7 @@ def _render_panel(client: ClientData, index: int, labels: dict) -> str:
             f'<h3 class="section-heading">{html.escape(labels["social_heading"])}</h3>'
             f'<div class="card-grid">{social_cards}</div>'
         )
-    return f"""<section class="panel" id="panel-{index}" style="display:{display}">
+    return f"""<section class="panel" id="panel-{lang}-{index}" style="display:{display}">
   <h2>{html.escape(client.name)}</h2>
   {summary_html}
   {headline_heading}
@@ -152,8 +191,9 @@ def _render_panel(client: ClientData, index: int, labels: dict) -> str:
 </section>"""
 
 
-def _render_summary(client: ClientData, labels: dict) -> str:
-    if not client.answer:
+def _render_summary(client: ClientData, lang: str, labels: dict) -> str:
+    text = client.answer.get(lang, "") if client.answer else ""
+    if not text:
         return ""
     seen, links = set(), []
     for r in client.press:
@@ -173,7 +213,7 @@ def _render_summary(client: ClientData, labels: dict) -> str:
     return (
         f'<div class="summary">'
         f'<span class="summary-label">{html.escape(labels["summary_heading"])}</span>'
-        f'<p>{html.escape(client.answer)}</p>'
+        f'<p>{html.escape(text)}</p>'
         f'{sources_html}'
         f'</div>'
     )
@@ -246,8 +286,19 @@ _CSS = """
 * { box-sizing: border-box; }
 body {
   font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  margin: 0; background: var(--bg); color: var(--ink);
+  margin: 0; background: var(--bg); color: var(--ink); position: relative;
 }
+.lang-switch {
+  position: fixed; top: 14px; right: 18px; z-index: 20; display: flex; gap: 4px;
+  background: rgba(13,26,38,0.35); backdrop-filter: blur(6px); padding: 4px; border-radius: 999px;
+}
+.lang-btn {
+  border: none; background: transparent; color: rgba(255,255,255,0.8); padding: 6px 14px;
+  border-radius: 999px; cursor: pointer; font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.lang-btn:hover { background: rgba(255,255,255,0.15); }
+.lang-btn.active { background: white; color: var(--cisco-blue-dark); }
 header {
   background: linear-gradient(135deg, var(--cisco-blue-dark) 0%, var(--cisco-blue) 100%);
   color: white; padding: 24px 32px 0; position: relative; overflow: hidden;
@@ -293,7 +344,7 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--cisco-blue-dark);
 }
-.summary p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
+.summary p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink); white-space: pre-line; }
 .summary-sources { font-size: 12px !important; color: var(--muted) !important; margin-top: 10px !important; }
 .summary-sources span { font-weight: 700; color: var(--cisco-blue-dark); }
 .summary-sources a { color: var(--cisco-blue-dark); font-weight: 600; text-decoration: none; }
@@ -350,9 +401,22 @@ footer { padding: 24px 32px 32px; max-width: 1280px; margin: 0 auto; }
 """
 
 _JS = """
-function showClient(index) {
-  document.querySelectorAll('.panel').forEach((p, i) => { p.style.display = (i === index) ? 'block' : 'none'; });
-  document.querySelectorAll('.tab').forEach((t, i) => { t.classList.toggle('active', i === index); });
+function showClient(lang, index) {
+  document.querySelectorAll('#view-' + lang + ' .panel').forEach((p, i) => {
+    p.style.display = (i === index) ? 'block' : 'none';
+  });
+  document.querySelectorAll('#view-' + lang + ' .tab').forEach((t, i) => {
+    t.classList.toggle('active', i === index);
+  });
+}
+
+function setLang(lang) {
+  if (lang !== 'fr' && lang !== 'en') lang = 'fr';
+  document.getElementById('view-fr').style.display = lang === 'fr' ? 'block' : 'none';
+  document.getElementById('view-en').style.display = lang === 'en' ? 'block' : 'none';
+  document.getElementById('lang-btn-fr').classList.toggle('active', lang === 'fr');
+  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
+  try { localStorage.setItem('dashboardLang', lang); } catch (e) {}
 }
 """
 

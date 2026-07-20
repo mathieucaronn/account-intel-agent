@@ -18,15 +18,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install -r requirements.txt
+      # requirements-ai.txt (paquet 'anthropic') installé systématiquement :
+      # léger, et permet au résumé croisé par IA de s'activer automatiquement
+      # dès que le secret ANTHROPIC_API_KEY est renseigné, sans retoucher ce
+      # fichier.
+      - run: pip install -r requirements.txt -r requirements-ai.txt
 
       - name: Régénère le dashboard
         run: python -m account_intel --out docs/index.html
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          # "fr" (par défaut) ou "en" — dashboard entièrement dans une langue
-          # ou l'autre. Se configure dans Settings → Secrets and variables →
-          # Actions → Variables (pas un secret, pas sensible).
+          # Optionnel : active un résumé du jour croisant presse/communiqués/
+          # réseaux sociaux via Claude (sinon repli automatique sur le résumé
+          # Tavily). Settings → Secrets and variables → Actions → Secrets.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Langue affichée par défaut à l'ouverture ("fr" ou "en") — un
+          # bouton sur la page permet de toute façon de basculer à tout
+          # moment, les deux langues sont toujours générées. Settings →
+          # Secrets and variables → Actions → Variables (pas un secret).
           DEFAULT_LANG: ${{ vars.DEFAULT_LANG }}
 
       - name: Publie si le contenu a changé
