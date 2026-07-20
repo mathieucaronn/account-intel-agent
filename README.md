@@ -1,16 +1,19 @@
-# Account Intel Dashboard 🕵️
+# Cisco Manufacturing — Account News 🕵️
 
 Dashboard d'**account intelligence** pour équipes commerciales : une revue de
-presse par client suivi, limitée aux grands médias reconnus (Reuters, WSJ,
-Le Monde, BBC, Le Figaro, CNN...), avec un résumé du jour par entreprise, en
+presse par client suivi, limitée aux grands médias mondiaux reconnus
+(France, États-Unis, Royaume-Uni, presse tech de référence), orientée
+technologie/IA/réseaux/acquisitions plutôt que pure actualité financière,
+avec un résumé du jour et les communiqués officiels de chaque entreprise, en
 agrégeant **uniquement des données publiques**. Se met à jour
 automatiquement, sans intervention manuelle une fois configuré.
 
 ## Ce que montre le dashboard
 
-Une page avec un onglet par client suivi, et pour chacun : un résumé du jour
-généré à partir des dernières actualités, puis les grands titres — média,
-date, extrait, lien vers l'article.
+Une page avec un onglet par client suivi, et pour chacun :
+un **résumé du jour** (avec ses sources), les **grands titres** datés issus
+des grands médias (titre, média, date, extrait, lien), et les
+**communiqués officiels** publiés par l'entreprise elle-même.
 
 ## Fonctionnement
 
@@ -18,9 +21,10 @@ date, extrait, lien vers l'article.
 clients.json (liste des clients suivis)
       │
       ▼
-1. Recherche presse (Tavily)      ── par client, filtrée aux grands médias
-2. Rendu HTML statique            ── docs/index.html
-3. GitHub Actions (quotidien)     ── régénère et republie automatiquement
+1. Presse grand public (Tavily)   ── par client, filtrée aux grands médias mondiaux
+2. Communiqués officiels (Tavily) ── par client, sur le site de l'entreprise
+3. Rendu HTML statique            ── docs/index.html
+4. GitHub Actions (quotidien)     ── régénère et republie automatiquement
 ```
 
 Python pur, 2 dépendances (`requests`, `python-dotenv`), pas de framework
@@ -113,14 +117,29 @@ dashboard avec la nouvelle liste.
   suivis : une entreprise peu couverte par la presse généraliste peut
   afficher « aucun article trouvé » — c'est volontaire (mieux vaut rien
   qu'un résultat hors sujet).
+- Pour les filiales au nom composé (ex. « Airbus Defence and Space »), la
+  presse écrit rarement le nom complet mot pour mot : le filtre accepte donc
+  le nom principal + au moins un mot du nom secondaire, ce qui peut laisser
+  passer un article un peu moins ciblé plutôt que de ne rien afficher.
 - Risque d'homonymie sur les noms ambigus : précisez si besoin (ex.
   `"Mistral AI"` plutôt que `"Mistral"`, `"TotalEnergies"` plutôt que
   `"Total"`).
 - Le résumé du jour est généré par l'API de recherche (Tavily), pas par un
-  LLM dédié : pas de déduplication poussée, et il peut occasionnellement
-  sortir en anglais même pour une recherche en français.
-- Habillage visuel inspiré des couleurs de Cisco Blue à titre de projet de
-  stage personnel ; ce n'est pas un produit officiel Cisco.
+  LLM dédié : pas de vraie synthèse croisée multi-articles, et il peut
+  occasionnellement sortir en anglais même pour une recherche en français.
+  Passer sur un vrai résumé par IA (Claude) est possible mais ajoute un coût
+  et une clé API — non fait par défaut, à activer sciemment.
+- Pas de barre de recherche libre sur la page publiée : GitHub Pages ne peut
+  exécuter aucun code serveur, et la clé Tavily ne doit jamais être exposée
+  côté navigateur. Un vrai correctif existe (petite fonction serverless
+  gratuite, ex. Cloudflare Workers) mais nécessite de créer un compte tiers
+  — non fait par défaut.
+- Habillage visuel inspiré des couleurs et du motif « onde sonore » de
+  Cisco (dessiné en CSS, pas le logo déposé) à titre de projet de stage
+  personnel ; ce n'est pas un produit officiel Cisco.
+- Avec ~21 clients suivis × 2 requêtes chacun, l'automatisation quotidienne
+  consomme une quantité significative du quota Tavily gratuit sur un mois :
+  à surveiller si le plan gratuit ne suffit plus.
 
 ## Licence
 

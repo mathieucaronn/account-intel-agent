@@ -10,77 +10,63 @@ TIMEOUT_SECONDS = 30
 NEWS_LOOKBACK_DAYS = 180
 DEFAULT_MAX_RESULTS = 15
 
+_STOPWORDS = {"and", "et", "de", "des", "du", "la", "le", "les", "of", "the"}
+
 
 class SearchError(Exception):
     """Erreur d'accès à l'API de recherche (réseau, quota, clé invalide...)."""
 
 
+# Orienté technologie / IA / réseaux / acquisitions / dirigeants plutôt que
+# pure actualité financière (marchés, cours de bourse).
 NEWS_QUERY = {
-    "fr": "{company} actualité",
-    "en": "{company} news",
+    "fr": "{company} technologie intelligence artificielle réseaux acquisition dirigeant innovation",
+    "en": "{company} technology AI artificial intelligence networking acquisition leadership innovation",
 }
 
-# Recherche "news" chez Tavily a un index pauvre sur les seuls domaines
-# français (résultats hors sujet observés en test) ; la recherche générale a
-# une bien meilleure couverture sur ces mêmes domaines. Le mix international
-# (Reuters, WSJ...) fonctionne bien en "news" avec de vraies dates.
-SEARCH_TOPIC = {"fr": "general", "en": "news"}
-
-# Grands médias reconnus uniquement : on exclut délibérément la presse
-# spécialisée/blogs/communiqués pour ne garder que des sources grand public
-# de référence.
-MAJOR_NEWS_DOMAINS = {
-    "fr": (
-        "lemonde.fr",
-        "lefigaro.fr",
-        "liberation.fr",
-        "tf1info.fr",
-        "francetvinfo.fr",
-        "franceinfo.fr",
-        "bfmtv.com",
-        "lesechos.fr",
-        "latribune.fr",
-        "challenges.fr",
-        "capital.fr",
-        "la-croix.com",
-        "ouest-france.fr",
-        "leparisien.fr",
-        "lepoint.fr",
-        "lexpress.fr",
-        "usinenouvelle.com",
-        "boursorama.com",
-    ),
-    "en": (
-        "bbc.com",
-        "bbc.co.uk",
-        "cnn.com",
-        "reuters.com",
-        "apnews.com",
-        "nytimes.com",
-        "washingtonpost.com",
-        "theguardian.com",
-        "wsj.com",
-        "bloomberg.com",
-        "economist.com",
-        "time.com",
-        "forbes.com",
-        "ft.com",
-    ),
+OFFICIAL_PRESS_QUERY = {
+    "fr": "{company} communiqué de presse officiel annonce",
+    "en": "{company} official press release announcement newsroom",
 }
 
-# Titres de pages "hub" (flux/agrégateur d'une valeur boursière ou d'une
-# entreprise) plutôt que de vrais articles datés — motifs observés en test
-# sur la presse économique française.
-_HUB_TITLE_MARKERS = (
-    "direct",
-    "infos",
-    "information",
-    "derniere",
-    "chiffre",
-    "conseil",
-    "enquete",
-    "groupe",
-    "video",
+# Grands médias reconnus uniquement (France, États-Unis, Royaume-Uni,
+# presse tech de référence) : on exclut délibérément la presse
+# spécialisée/blogs pour ne garder que des sources grand public de référence.
+MAJOR_NEWS_DOMAINS = (
+    # France
+    "lemonde.fr",
+    "lefigaro.fr",
+    "lesechos.fr",
+    "latribune.fr",
+    "challenges.fr",
+    "capital.fr",
+    "bfmtv.com",
+    "tf1info.fr",
+    "usinenouvelle.com",
+    "boursorama.com",
+    # États-Unis
+    "nytimes.com",
+    "wsj.com",
+    "bloomberg.com",
+    "cnn.com",
+    "reuters.com",
+    "apnews.com",
+    "washingtonpost.com",
+    "forbes.com",
+    "fortune.com",
+    "businessinsider.com",
+    # Royaume-Uni
+    "bbc.com",
+    "bbc.co.uk",
+    "theguardian.com",
+    "ft.com",
+    "sky.com",
+    "telegraph.co.uk",
+    # Presse tech de référence
+    "techcrunch.com",
+    "theverge.com",
+    "wired.com",
+    "arstechnica.com",
 )
 
 
@@ -130,46 +116,60 @@ def _normalize(text: str) -> str:
     return re.sub(r"['’\-]", " ", text.lower())
 
 
-def _looks_like_hub_page(title: str, company_normalized: str) -> bool:
-    title_n = _normalize(title)
-    if title_n.strip() == company_normalized:
-        return True
-    if title_n.startswith("actions ") or title_n.startswith("action "):
-        return True
-    if "actualit" in title_n and any(m in title_n for m in _HUB_TITLE_MARKERS):
-        return True
-    return False
+def _name_words(company: str) -> tuple:
+    words = [w for w in _normalize(company).split() if w not in _STOPWORDS and len(w) > 2]
+    return tuple(words) if words else (_normalize(company),)
+
+
+def _matches_company(text: str, words: tuple) -> bool:
+    """Le mot principal (ex. « airbus ») doit apparaître, et au moins un des
+    mots secondaires si le nom en comporte (ex. « defence »/« space » pour
+    « Airbus Defence and Space ») — la presse écrit rarement les noms de
+    filiales composés mot pour mot, donc exiger la phrase exacte ne renvoie
+    presque jamais rien."""
+    text_n = _normalize(text)
+    primary, rest = words[0], words[1:]
+    return primary in text_n and (not rest or any(w in text_n for w in rest))
 
 
 def collect_press(
     client: TavilyClient, company: str, lang: str, max_results: int = DEFAULT_MAX_RESULTS
 ) -> dict:
     """Retourne les articles de presse récents sur `company`, restreints aux
-    grands médias, avec un résumé du jour généré par Tavily.
-
-    Quand la couverture presse d'une entreprise est faible, l'API Tavily peut
-    dériver vers des résultats thématiquement proches mais sans rapport : on
-    filtre donc pour ne garder que les résultats qui mentionnent réellement
-    l'entreprise, quitte à renvoyer une liste vide plutôt que du bruit. On
-    écarte aussi les pages "hub" (flux d'actualités d'une valeur boursière)
-    au profit de vrais titres d'articles.
+    grands médias mondiaux (France, États-Unis, Royaume-Uni, presse tech),
+    avec un résumé du jour généré par Tavily.
 
     Retourne {"results": [...], "answer": str | None}.
     """
     query = NEWS_QUERY[lang].format(company=company)
     data = client.search(
         query,
-        topic=SEARCH_TOPIC[lang],
+        topic="news",
         max_results=max_results,
-        include_domains=MAJOR_NEWS_DOMAINS[lang],
+        include_domains=MAJOR_NEWS_DOMAINS,
         include_answer=True,
     )
     results = data.get("results", [])
-    needle = _normalize(company)
+    words = _name_words(company)
     filtered = [
         r
         for r in results
-        if needle in _normalize(r.get("title", "") + " " + r.get("content", ""))
-        and not _looks_like_hub_page(r.get("title", ""), needle)
+        if _matches_company(r.get("title", "") + " " + r.get("content", ""), words)
     ]
     return {"results": filtered, "answer": data.get("answer") or None}
+
+
+def collect_official_press(
+    client: TavilyClient, company: str, lang: str, max_results: int = 6
+) -> list:
+    """Retourne des communiqués/annonces publiés par l'entreprise elle-même
+    (site officiel, newsroom), sans restriction de domaine."""
+    query = OFFICIAL_PRESS_QUERY[lang].format(company=company)
+    data = client.search(query, topic="general", max_results=max_results)
+    results = data.get("results", [])
+    words = _name_words(company)
+    return [
+        r
+        for r in results
+        if _matches_company(r.get("title", "") + " " + r.get("content", ""), words)
+    ]

@@ -11,22 +11,26 @@ from . import search
 
 LABELS = {
     "fr": {
-        "title": "Account Intelligence",
+        "title": "Cisco Manufacturing — Account News",
         "subtitle": "Revue de presse par compte, sources grand public uniquement",
         "generated": "Actualisé automatiquement le {date}.",
         "summary_heading": "Résumé du jour",
+        "sources_label": "Sources",
         "headlines_heading": "Grands titres",
+        "official_heading": "Communiqués officiels de l'entreprise",
         "no_press": "Aucun article trouvé dans les grands médias suivis pour cette entreprise.",
         "press_error": "Recherche presse indisponible : {error}",
         "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json.",
         "source": "Lire l'article",
     },
     "en": {
-        "title": "Account Intelligence",
+        "title": "Cisco Manufacturing — Account News",
         "subtitle": "Per-account press review, major outlets only",
         "generated": "Automatically refreshed on {date}.",
         "summary_heading": "Today's summary",
+        "sources_label": "Sources",
         "headlines_heading": "Top headlines",
+        "official_heading": "Official company announcements",
         "no_press": "No articles found in tracked major outlets for this company.",
         "press_error": "Press search unavailable: {error}",
         "no_clients": "No tracked clients. Add some in clients.json.",
@@ -39,6 +43,7 @@ LABELS = {
 class ClientData:
     name: str
     press: list = field(default_factory=list)
+    official_press: list = field(default_factory=list)
     answer: str = None
     press_error: str = None
 
@@ -51,6 +56,11 @@ def collect_client(tavily_client: search.TavilyClient, client_name: str, lang: s
         data.answer = result["answer"]
     except search.SearchError as exc:
         data.press_error = str(exc)
+        return data
+    try:
+        data.official_press = search.collect_official_press(tavily_client, client_name, lang)
+    except search.SearchError:
+        pass  # les communiqués officiels sont un bonus, pas critique
     return data
 
 
@@ -83,7 +93,9 @@ def render_html(clients_data: list, lang: str) -> str:
 <header>
   <div class="header-inner">
     <div class="brand">
-      <span class="brand-mark"></span>
+      <span class="soundwave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </span>
       <div>
         <h1>{html.escape(labels['title'])}</h1>
         <p class="subtitle">{html.escape(labels['subtitle'])}</p>
@@ -93,7 +105,7 @@ def render_html(clients_data: list, lang: str) -> str:
   <nav class="tabs">{tabs_html}</nav>
 </header>
 <main>{panels_html}</main>
-<footer><p class="meta">{html.escape(labels['generated'].format(date=generated_at))}</p></footer>
+<footer><p class="meta"><span class="live-dot"></span>{html.escape(labels['generated'].format(date=generated_at))}</p></footer>
 <script>{_JS}</script>
 </body>
 </html>
@@ -102,24 +114,45 @@ def render_html(clients_data: list, lang: str) -> str:
 
 def _render_panel(client: ClientData, index: int, labels: dict) -> str:
     display = "block" if index == 0 else "none"
-    summary_html = ""
-    if client.answer:
-        summary_html = (
-            f'<div class="summary">'
-            f'<span class="summary-label">{html.escape(labels["summary_heading"])}</span>'
-            f'<p>{html.escape(client.answer)}</p>'
-            f'</div>'
-        )
+    summary_html = _render_summary(client, labels)
     press_html = render_press(client, labels)
     headline_heading = "" if not client.press else (
         f'<h3 class="section-heading">{html.escape(labels["headlines_heading"])}</h3>'
     )
+    official_html = ""
+    if client.official_press:
+        official_cards = _render_cards(client.official_press, labels, official=True)
+        official_html = (
+            f'<h3 class="section-heading">{html.escape(labels["official_heading"])}</h3>'
+            f'<div class="card-grid">{official_cards}</div>'
+        )
     return f"""<section class="panel" id="panel-{index}" style="display:{display}">
   <h2>{html.escape(client.name)}</h2>
   {summary_html}
   {headline_heading}
   <div class="card-grid">{press_html}</div>
+  {official_html}
 </section>"""
+
+
+def _render_summary(client: ClientData, labels: dict) -> str:
+    if not client.answer:
+        return ""
+    outlets = sorted({_source_name(r.get("url", "")) for r in client.press if r.get("url")})
+    sources_html = ""
+    if outlets:
+        sources_html = (
+            f'<p class="summary-sources">'
+            f'<span>{html.escape(labels["sources_label"])} :</span> {html.escape(", ".join(outlets))}'
+            f'</p>'
+        )
+    return (
+        f'<div class="summary">'
+        f'<span class="summary-label">{html.escape(labels["summary_heading"])}</span>'
+        f'<p>{html.escape(client.answer)}</p>'
+        f'{sources_html}'
+        f'</div>'
+    )
 
 
 def render_press(client: ClientData, labels: dict) -> str:
@@ -127,17 +160,22 @@ def render_press(client: ClientData, labels: dict) -> str:
         return f'<p class="empty error">{html.escape(labels["press_error"].format(error=client.press_error))}</p>'
     if not client.press:
         return f'<p class="empty">{html.escape(labels["no_press"])}</p>'
+    return _render_cards(client.press, labels)
+
+
+def _render_cards(results: list, labels: dict, official: bool = False) -> str:
     cards = []
-    for r in client.press:
+    for i, r in enumerate(results):
         title = html.escape(r.get("title", "Sans titre"))
         url = html.escape(r.get("url", ""))
         source_name = html.escape(_source_name(r.get("url", "")))
         date = r.get("published_date", "")
         date_html = f'<span class="date">{html.escape(date)}</span>' if date else ""
         content = html.escape(r.get("content", "").strip()[:280])
+        badge_class = "outlet official" if official else "outlet"
         cards.append(
-            f'<article class="card">'
-            f'<div class="card-top"><span class="outlet">{source_name}</span>{date_html}</div>'
+            f'<article class="card" style="animation-delay:{i * 40}ms">'
+            f'<div class="card-top"><span class="{badge_class}">{source_name}</span>{date_html}</div>'
             f'<a class="card-title" href="{url}" target="_blank" rel="noopener">{title}</a>'
             f'<p>{content}</p>'
             f'<a class="card-source" href="{url}" target="_blank" rel="noopener">{html.escape(labels["source"])} →</a>'
@@ -169,15 +207,23 @@ body {
 }
 header {
   background: linear-gradient(135deg, var(--cisco-blue-dark) 0%, var(--cisco-blue) 100%);
-  color: white; padding: 24px 32px 0;
+  color: white; padding: 24px 32px 0; position: relative; overflow: hidden;
 }
 .header-inner { padding-bottom: 20px; }
-.brand { display: flex; align-items: center; gap: 14px; }
-.brand-mark {
-  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
-  background: white;
-  background-image: radial-gradient(circle at 30% 30%, rgba(4,159,217,0.9), rgba(0,80,115,0.9));
+.brand { display: flex; align-items: center; gap: 16px; }
+.soundwave { display: flex; align-items: center; gap: 3px; height: 32px; flex-shrink: 0; }
+.soundwave span {
+  display: block; width: 4px; border-radius: 3px; background: white;
+  animation: wave 1.6s ease-in-out infinite;
 }
+.soundwave span:nth-child(1) { height: 40%; animation-delay: 0s; }
+.soundwave span:nth-child(2) { height: 70%; animation-delay: 0.1s; }
+.soundwave span:nth-child(3) { height: 100%; animation-delay: 0.2s; }
+.soundwave span:nth-child(4) { height: 55%; animation-delay: 0.3s; }
+.soundwave span:nth-child(5) { height: 90%; animation-delay: 0.4s; }
+.soundwave span:nth-child(6) { height: 65%; animation-delay: 0.5s; }
+.soundwave span:nth-child(7) { height: 35%; animation-delay: 0.6s; }
+@keyframes wave { 0%, 100% { transform: scaleY(0.6); opacity: 0.7; } 50% { transform: scaleY(1); opacity: 1; } }
 header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
 .subtitle { margin: 2px 0 0; font-size: 13px; color: rgba(255,255,255,0.85); }
 .tabs {
@@ -192,8 +238,8 @@ header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01e
 .tab:hover { background: rgba(255,255,255,0.12); color: white; }
 .tab.active { background: var(--bg); color: var(--cisco-blue-dark); font-weight: 700; }
 main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
-.panel { animation: fade-in 0.25s ease; }
-@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.panel { animation: fade-in 0.3s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .panel h2 { margin: 0 0 16px; font-size: 20px; color: var(--ink); }
 .summary {
   background: linear-gradient(135deg, rgba(4,159,217,0.08), rgba(0,80,115,0.05));
@@ -205,9 +251,11 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
   color: var(--cisco-blue-dark);
 }
 .summary p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
+.summary-sources { font-size: 12px !important; color: var(--muted) !important; margin-top: 10px !important; }
+.summary-sources span { font-weight: 700; color: var(--cisco-blue-dark); }
 .section-heading {
   font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--muted); margin: 0 0 12px;
+  color: var(--muted); margin: 24px 0 12px;
 }
 .card-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
@@ -216,13 +264,16 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
   padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: card-in 0.35s ease backwards;
 }
-.card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(13,26,38,0.08); }
+@keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(13,26,38,0.1); }
 .card-top { display: flex; justify-content: space-between; align-items: center; }
 .outlet {
   font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--cisco-blue-dark);
   background: rgba(4,159,217,0.1); padding: 3px 8px; border-radius: 999px;
 }
+.outlet.official { color: #0d7a3f; background: rgba(13,122,63,0.1); }
 .date { font-size: 12px; color: var(--muted); }
 .card-title { font-weight: 600; text-decoration: none; color: var(--ink); line-height: 1.35; }
 .card-title:hover { color: var(--cisco-blue-dark); }
@@ -234,7 +285,16 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
 .empty { color: var(--muted); font-style: italic; grid-column: 1 / -1; }
 .error { color: #b91c1c; }
 footer { padding: 24px 32px 32px; max-width: 1280px; margin: 0 auto; }
-.meta { margin: 0; font-size: 12.5px; color: var(--muted); }
+.meta { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #17b06b; flex-shrink: 0;
+  box-shadow: 0 0 0 rgba(23,176,107,0.5); animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(23,176,107,0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(23,176,107,0); }
+  100% { box-shadow: 0 0 0 0 rgba(23,176,107,0); }
+}
 """
 
 _JS = """
