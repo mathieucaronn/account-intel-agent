@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from . import dashboard
 
 
-def _make_handler(tavily_client, linkedin_command: str, lang: str, serve_dir: Path):
+def _make_handler(tavily_client, lang: str, serve_dir: Path):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             pass  # les logs par défaut du serveur stdlib sont trop bruyants ici
@@ -28,18 +28,10 @@ def _make_handler(tavily_client, linkedin_command: str, lang: str, serve_dir: Pa
             if not company:
                 self._json({"error": "missing company"}, status=400)
                 return
-            data = dashboard.collect_client(
-                tavily_client, linkedin_command, company, [], lang
-            )
+            data = dashboard.collect_client(tavily_client, company, lang)
             labels = dashboard.LABELS[lang]
             self._json(
-                {
-                    "name": data.name,
-                    "press_html": dashboard.render_press(data, labels),
-                    "linkedin_html": dashboard.render_linkedin(
-                        data, labels, bool(linkedin_command)
-                    ),
-                }
+                {"name": data.name, "press_html": dashboard.render_press(data, labels)}
             )
 
         def _json(self, payload: dict, status: int = 200) -> None:
@@ -70,8 +62,8 @@ def _make_handler(tavily_client, linkedin_command: str, lang: str, serve_dir: Pa
     return Handler
 
 
-def run(tavily_client, linkedin_command: str, lang: str, serve_dir: str, port: int = 8000) -> None:
-    handler = _make_handler(tavily_client, linkedin_command, lang, Path(serve_dir))
+def run(tavily_client, lang: str, serve_dir: str, port: int = 8000) -> None:
+    handler = _make_handler(tavily_client, lang, Path(serve_dir))
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as exc:

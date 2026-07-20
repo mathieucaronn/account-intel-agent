@@ -1,6 +1,6 @@
 """Point d'entrée CLI : python -m account_intel [entreprises ad hoc...]
 
-Régénère le dashboard HTML (presse + LinkedIn) pour les clients suivis dans
+Régénère le dashboard HTML de revue de presse pour les clients suivis dans
 clients.json, plus d'éventuelles entreprises ponctuelles passées en argument.
 """
 
@@ -15,8 +15,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m account_intel",
         description=(
-            "Régénère le dashboard HTML de revue de presse et de posts "
-            "LinkedIn pour les équipes sales, à partir de données publiques."
+            "Régénère le dashboard HTML de revue de presse pour les équipes "
+            "sales, à partir de grands médias reconnus uniquement."
         ),
     )
     parser.add_argument(
@@ -81,53 +81,33 @@ def main(argv=None) -> int:
         print(f"➕ « {name} » ajouté à {settings.clients_path}")
         tracked = clients_module.load_clients(settings.clients_path)
 
-    ad_hoc = [clients_module.Client(name=c.strip(), executives=[]) for c in args.company if c.strip()]
+    ad_hoc = [c.strip() for c in args.company if c.strip()]
     all_clients = tracked + ad_hoc
 
     if not all_clients:
         print(
             "⚠️  Aucun client suivi et aucune entreprise passée en argument. "
-            "Copiez clients.example.json vers clients.json, ou lancez avec des "
-            "noms d'entreprise en argument.",
-            file=sys.stderr,
-        )
-
-    linkedin_enabled = bool(settings.linkedin_mcp_command)
-    if linkedin_enabled and any(c.executives for c in all_clients):
-        print(
-            "⚠️  Extension LinkedIn activée : NON CONFORME AUX CGU LINKEDIN "
-            "(scraping via credentials personnels, risque de bannissement de "
-            "compte). Voir LINKEDIN_MCP.md. Poursuite à vos risques.",
+            "Ajoutez-en dans clients.json, ou lancez avec des noms "
+            "d'entreprise en argument.",
             file=sys.stderr,
         )
 
     tavily_client = search.TavilyClient(settings.tavily_api_key)
     clients_data = []
-    for c in all_clients:
-        print(f"🔎 Collecte pour « {c.name} »...")
-        data = dashboard.collect_client(
-            tavily_client, settings.linkedin_mcp_command, c.name, c.executives, lang
-        )
+    for name in all_clients:
+        print(f"🔎 Collecte pour « {name} »...")
+        data = dashboard.collect_client(tavily_client, name, lang)
         if data.press_error:
-            print(f"⚠️  {c.name} : {data.press_error}", file=sys.stderr)
-        for entry in data.linkedin:
-            if entry["status"] == "error":
-                print(f"⚠️  {c.name} / {entry['person']} : {entry['error']}", file=sys.stderr)
+            print(f"⚠️  {name} : {data.press_error}", file=sys.stderr)
         clients_data.append(data)
 
-    html_content = dashboard.render_html(clients_data, lang, linkedin_enabled)
+    html_content = dashboard.render_html(clients_data, lang)
     out_path = dashboard.write_dashboard(html_content, args.out)
     print(f"✅ Dashboard généré : {out_path}")
 
     if args.serve:
         try:
-            server.run(
-                tavily_client,
-                settings.linkedin_mcp_command,
-                lang,
-                str(out_path.parent),
-                port=args.port,
-            )
+            server.run(tavily_client, lang, str(out_path.parent), port=args.port)
         except RuntimeError as exc:
             print(f"❌ {exc}", file=sys.stderr)
             return 1

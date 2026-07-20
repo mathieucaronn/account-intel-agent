@@ -2,7 +2,6 @@
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -18,7 +17,6 @@ class ConfigError(Exception):
 class Settings:
     tavily_api_key: str
     default_lang: str
-    linkedin_mcp_command: Optional[str]
     clients_path: str
 
 
@@ -42,9 +40,5 @@ def load_settings() -> Settings:
     return Settings(
         tavily_api_key=tavily_key,
         default_lang=default_lang,
-        # Extension optionnelle et NON conforme aux CGU LinkedIn — voir LINKEDIN_MCP.md.
-        # Commande pour lancer un serveur MCP tiers déjà installé/configuré à part
-        # (ex. "node /chemin/vers/linkedin-mcpserver/build/index.js").
-        linkedin_mcp_command=os.getenv("LINKEDIN_MCP_COMMAND", "").strip() or None,
         clients_path=os.getenv("CLIENTS_PATH", "").strip() or DEFAULT_CLIENTS_PATH,
     )

@@ -2,51 +2,121 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Dashboard account intelligence</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account Intelligence</title>
 <style>
-:root { color-scheme: light; }
-body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; background: #f4f5f7; color: #1c2333; }
-header { background: #1a3c6e; color: white; padding: 20px 32px; }
-header h1 { margin: 0 0 4px; font-size: 22px; }
-.meta { margin: 0 0 16px; font-size: 13px; opacity: 0.85; }
-.search-bar { display: flex; gap: 8px; margin-bottom: 10px; max-width: 420px; }
-.search-bar input { flex: 1; padding: 8px 10px; border-radius: 6px; border: none; font-size: 14px; }
-.search-bar button { border: none; background: #2f5aa0; color: white; padding: 8px 16px;
-  border-radius: 6px; cursor: pointer; font-size: 14px; }
-.search-bar button:hover { background: #3b6cbf; }
-#search-status { font-size: 13px; margin: 0 0 12px; min-height: 16px; opacity: 0.9; }
-.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.tab { border: none; background: rgba(255,255,255,0.15); color: white; padding: 8px 14px;
-  border-radius: 6px; cursor: pointer; font-size: 14px; }
-.tab.active, .tab:hover { background: white; color: #1a3c6e; }
-main { padding: 24px 32px; }
-.panel h2 { margin-top: 0; }
-.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-.column h3 { font-size: 15px; color: #1a3c6e; }
-.card { background: white; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.card-title { font-weight: 600; text-decoration: none; color: #1c2333; display: block; margin-bottom: 4px; }
-.card-title:hover { text-decoration: underline; }
-.date { font-size: 12px; color: #6b7280; display: block; margin-bottom: 6px; }
-.card p { font-size: 14px; line-height: 1.5; margin: 6px 0; color: #374151; }
-.card-source { font-size: 12px; }
+:root {
+  color-scheme: light;
+  --cisco-blue: #049fd9;
+  --cisco-blue-dark: #005073;
+  --ink: #0d1a26;
+  --muted: #5b6b79;
+  --bg: #f5f8fa;
+  --card: #ffffff;
+  --border: #e1e8ed;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  margin: 0; background: var(--bg); color: var(--ink);
+}
+header {
+  background: linear-gradient(135deg, var(--cisco-blue-dark) 0%, var(--cisco-blue) 100%);
+  color: white; padding: 24px 32px 0;
+}
+.header-inner {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  flex-wrap: wrap; gap: 16px; padding-bottom: 20px;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  background: white;
+  background-image: radial-gradient(circle at 30% 30%, rgba(4,159,217,0.9), rgba(0,80,115,0.9));
+}
+header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.subtitle { margin: 2px 0 0; font-size: 13px; color: rgba(255,255,255,0.85); }
+.search-bar { display: flex; gap: 8px; }
+.search-bar input {
+  width: 240px; padding: 9px 12px; border-radius: 8px; border: 1px solid transparent;
+  font-size: 14px; outline: none;
+}
+.search-bar input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,0.5); }
+.search-bar button {
+  border: none; background: rgba(255,255,255,0.18); color: white; padding: 9px 18px;
+  border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+  transition: background 0.15s ease;
+}
+.search-bar button:hover { background: rgba(255,255,255,0.32); }
+#search-status {
+  color: white; font-size: 13px; margin: 0; min-height: 18px; opacity: 0.9;
+  padding: 0 32px;
+}
+.tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 32px 0; margin: 0;
+  border-top: 1px solid rgba(255,255,255,0.15);
+}
+.tab {
+  border: none; background: transparent; color: rgba(255,255,255,0.75);
+  padding: 10px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px;
+  font-weight: 500; transition: background 0.15s ease, color 0.15s ease;
+}
+.tab:hover { background: rgba(255,255,255,0.12); color: white; }
+.tab.active { background: var(--bg); color: var(--cisco-blue-dark); font-weight: 700; }
+main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
+.panel { animation: fade-in 0.25s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.panel h2 { margin: 0 0 18px; font-size: 20px; color: var(--ink); }
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+}
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(13,26,38,0.08); }
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.outlet {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--cisco-blue-dark);
+  background: rgba(4,159,217,0.1); padding: 3px 8px; border-radius: 999px;
+}
+.date { font-size: 12px; color: var(--muted); }
+.card-title { font-weight: 600; text-decoration: none; color: var(--ink); line-height: 1.35; }
+.card-title:hover { color: var(--cisco-blue-dark); }
+.card p { font-size: 13.5px; line-height: 1.55; margin: 0; color: var(--muted); flex-grow: 1; }
+.card-source {
+  font-size: 12.5px; font-weight: 600; color: var(--cisco-blue); text-decoration: none; margin-top: 4px;
+}
+.card-source:hover { text-decoration: underline; }
+.empty { color: var(--muted); font-style: italic; grid-column: 1 / -1; }
 .error { color: #b91c1c; }
-.empty { color: #6b7280; font-style: italic; }
-.disclaimer { font-size: 12px; color: #92400e; background: #fef3c7; padding: 8px 10px; border-radius: 6px; }
-@media (max-width: 800px) { .columns { grid-template-columns: 1fr; } }
+footer { padding: 24px 32px 32px; max-width: 1280px; margin: 0 auto; }
+.meta { margin: 0; font-size: 12.5px; color: var(--muted); }
+@media (max-width: 640px) {
+  .header-inner { flex-direction: column; }
+  .search-bar input { width: 100%; }
+  .search-bar { width: 100%; }
+}
 </style>
 </head>
 <body
-  data-search-placeholder="Rechercher une entreprise..."
   data-search-loading="Recherche en cours..."
-  data-search-unavailable="Recherche indisponible : lancez `python -m account_intel --serve` pour l&#x27;activer."
+  data-search-unavailable="Recherche indisponible sur cette page statique : lancez `python -m account_intel --serve` en local pour l&#x27;activer."
 >
 <header>
-  <h1>Dashboard account intelligence</h1>
-  <p class="meta">Régénéré le 2026-07-20 15:05. Relancez `python -m account_intel` pour rafraîchir.</p>
-  <div class="search-bar">
-    <input type="text" id="search-input" placeholder="Rechercher une entreprise...">
-    <button onclick="searchCompany()">Rechercher</button>
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div>
+        <h1>Account Intelligence</h1>
+        <p class="subtitle">Revue de presse par compte, sources grand public uniquement</p>
+      </div>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Rechercher une entreprise...">
+      <button onclick="searchCompany()">Rechercher</button>
+    </div>
   </div>
   <p id="search-status"></p>
   <nav class="tabs"><button class="tab active" onclick="showClient(0)">Doctolib</button>
@@ -56,75 +126,36 @@ main { padding: 24px 32px; }
 </header>
 <main><section class="panel" id="panel-0" style="display:block">
   <h2>Doctolib</h2>
-  <div class="columns">
-    <div class="column">
-      <h3>📰 Presse récente (6 derniers mois)</h3>
-      <p class="empty">Aucun article trouvé.</p>
-    </div>
-    <div class="column">
-      <h3>🔗 LinkedIn (dirigeants suivis)</h3>
-      <p class="empty">Extension LinkedIn non configurée (LINKEDIN_MCP_COMMAND absent du .env). Voir LINKEDIN_MCP.md.</p>
-    </div>
-  </div>
+  <div class="card-grid"><p class="empty">Aucun article trouvé dans les grands médias suivis pour cette entreprise.</p></div>
 </section>
 <section class="panel" id="panel-1" style="display:none">
   <h2>Datadog</h2>
-  <div class="columns">
-    <div class="column">
-      <h3>📰 Presse récente (6 derniers mois)</h3>
-      <article class="card"><a class="card-title" href="https://www.tipranks.com/news/ddog-earnings-datadog-skyrockets-30-after-blowing-past-estimates-and-raising-guidance" target="_blank" rel="noopener">DDOG Earnings: Datadog Skyrockets 30% after Blowing Past Estimates and Raising Guidance - TipRanks</a><span class="date">Thu, 07 May 2026 15:10:43 GMT</span><p># DDOG Earnings: Datadog Skyrockets 30% after Blowing Past Estimates and Raising Guidance - TipRanks.com. Top Analyst Stocks PopularTop Smart Score Stocks PopularAI Analyst Top Stocks NewTop Insiders StocksMarket MoversTipRanks 50 IndexAI StocksLargest Companies by Market Cap. Top ETFs by UpsideTop ETFs by Smart ScoreTop Gainers/ Losers/ Active ETFs. Smart Investor PopularSmart DividendSmart Growt</p><a class="card-source" href="https://www.tipranks.com/news/ddog-earnings-datadog-skyrockets-30-after-blowing-past-estimates-and-raising-guidance" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.cnbc.com/2026/05/07/ai-winners-software-datadog-stock.html" target="_blank" rel="noopener">Datadog stock soars 31% on blockbuster earnings as AI winners emerge in software - CNBC</a><span class="date">Thu, 07 May 2026 20:26:03 GMT</span><p># Datadog stock soars 31% on blockbuster earnings as AI winners emerge in software. * Datadog&#x27;s blockbuster results and guidance sent shares up by 30%, its biggest one-day pop since going public in 2023. * Investors say Datadog and Twilio are showing how to deploy AI-native solutions while also articulating a path to monetization. Datadog surged 31% on Thursday after reporting blockbuster earnings</p><a class="card-source" href="https://www.cnbc.com/2026/05/07/ai-winners-software-datadog-stock.html" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://finance.yahoo.com/markets/stocks/articles/datadog-raises-annual-forecast-strong-131454327.html" target="_blank" rel="noopener">Datadog raises annual forecast on strong cloud security demand, shares jump 36% - Yahoo Finance</a><span class="date">Thu, 07 May 2026 13:14:54 GMT</span><p># Datadog raises annual forecast on strong cloud security demand, shares jump 36%. May 7 (Reuters) - Cloud security firm Datadog on Thursday raised its annual forecast after beating Wall Street expectations ‌for first-quarter results, fueled by high demand for its ‌cloud security products amid rising artificial intelligence adoption. • The demand for Datadog&#x27;s monitoring and security tools have be</p><a class="card-source" href="https://finance.yahoo.com/markets/stocks/articles/datadog-raises-annual-forecast-strong-131454327.html" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.cnn.com/markets/stocks/DDOG" target="_blank" rel="noopener">DDOG Stock Quote Price and Forecast - CNN</a><span class="date">Tue, 09 Jun 2026 10:44:40 GMT</span><p>The price of DDOG shares has decreased $2.43 since the market last closed. Yesterday 10:05pm ET Datadog Director Cashes In With Major Insider Stock Sale by TipRanks   Yesterday 7:27am ET Datadog price target raised to $280 from $260 at BofA by TipRanks   Yesterday 5:26am ET New Buy Rating for Datadog (DDOG), the Technology Giant by TipRanks   Jun 06, 2026 9:01am ET Massive Insider Moves at Vistra,</p><a class="card-source" href="https://www.cnn.com/markets/stocks/DDOG" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.forbes.com/sites/greatspeculations/2026/05/11/how-ddog-stock-rises-to-400/" target="_blank" rel="noopener">How DDOG Stock Rises To $400 - Forbes</a><span class="date">Mon, 11 May 2026 00:00:00 GMT</span><p>Building a platform to do the job of 1 million analysts. Datadog is preparing for the next chapter of enterprise computing, one propelled by the embrace of complex artificial intelligence workloads. Should this platform consolidation transpire, a hypothetical financial model indicates a valuation potential approaching $400. The current enterprise IT landscape is evolving from basic cloud migration</p><a class="card-source" href="https://www.forbes.com/sites/greatspeculations/2026/05/11/how-ddog-stock-rises-to-400/" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.barrons.com/articles/datadog-earnings-stock-price-c84c9acd" target="_blank" rel="noopener">Datadog Stock Soars After Earnings. Why It’s a Software Bright Spot. - Barron&#x27;s</a><span class="date">Thu, 07 May 2026 11:21:00 GMT</span><p>This copy is for your personal, non-commercial use only. Distribution and use of this material are governed by our Subscriber Agreement and by copyright law. For non-personal use or to order multiple copies, please contact Dow Jones Reprints at 1-800-843-0008 or visit www.djreprints.com. # Datadog Stock Is Having a Record Day. Why ‘Observability’ Could Be the Next Big Thing. The monitoring and ana</p><a class="card-source" href="https://www.barrons.com/articles/datadog-earnings-stock-price-c84c9acd" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.cnbc.com/video/2026/05/07/how-twilio-and-datadog-are-winning-back-investor-confidence.html" target="_blank" rel="noopener">How Twilio and Datadog are winning back investor confidence - CNBC</a><span class="date">Thu, 07 May 2026 20:19:28 GMT</span><p># How Twilio and Datadog are winning back investor confidence. Software companies like Twilio and Datadog are starting to prove their case as winners in artificial intelligence. Investors say the performance from Datadog and Twilio underscores how companies that can deploy AI-native solutions while also articulating their path to monetization can ease disruption fears, for now. CNBC&#x27;s Seema Moody </p><a class="card-source" href="https://www.cnbc.com/video/2026/05/07/how-twilio-and-datadog-are-winning-back-investor-confidence.html" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.cnbc.com/video/2026/06/09/datadog-ceo-shares-why-new-ai-capabilities-help-securitize-agents.html" target="_blank" rel="noopener">Datadog CEO shares why new AI capabilities help securitize agents - CNBC</a><span class="date">Tue, 09 Jun 2026 15:33:17 GMT</span><p># Datadog CEO shares why new AI capabilities help securitize agents. CNBC’s Seema Mody speaks exclusively with Datadog CEO Olivier Pomel, who explains why the company’s newest AI capabilities are designed to help leading AI labs secure and monitor the performance of AI agents. OpenAI, SpaceX, Anthropic valuations are &#x27;really extraordinary,&#x27; says Decision Tree CEO. UBS expects the Fed to cut rates,</p><a class="card-source" href="https://www.cnbc.com/video/2026/06/09/datadog-ceo-shares-why-new-ai-capabilities-help-securitize-agents.html" target="_blank" rel="noopener">Source</a></article>
-    </div>
-    <div class="column">
-      <h3>🔗 LinkedIn (dirigeants suivis)</h3>
-      <p class="empty">Extension LinkedIn non configurée (LINKEDIN_MCP_COMMAND absent du .env). Voir LINKEDIN_MCP.md.</p>
-    </div>
-  </div>
+  <div class="card-grid"><article class="card"><div class="card-top"><span class="outlet">FORBES</span><span class="date">Tue, 10 Mar 2026 19:13:15 GMT</span></div><a class="card-title" href="https://www.forbes.com/sites/greatspeculations/2026/03/10/why-investors-are-flocking-back-to-ddog-stock/" target="_blank" rel="noopener">Why Investors Are Flocking Back To DDOG Stock? - Forbes</a><p>(NASDAQ: DDOG), a U.S.-based cloud monitoring and observability platform providing infrastructure monitoring, application performance management and log analytics for developers and IT operations teams, in front of a screen showing the company&#x27;s latest stock market chart on Febru</p><a class="card-source" href="https://www.forbes.com/sites/greatspeculations/2026/03/10/why-investors-are-flocking-back-to-ddog-stock/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">CNN</span><span class="date">Tue, 09 Jun 2026 10:44:40 GMT</span></div><a class="card-title" href="https://www.cnn.com/markets/stocks/DDOG" target="_blank" rel="noopener">DDOG Stock Quote Price and Forecast - CNN</a><p>The price of DDOG shares has decreased $2.43 since the market last closed. Yesterday 10:05pm ET Datadog Director Cashes In With Major Insider Stock Sale by TipRanks   Yesterday 7:27am ET Datadog price target raised to $280 from $260 at BofA by TipRanks   Yesterday 5:26am ET New B</p><a class="card-source" href="https://www.cnn.com/markets/stocks/DDOG" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">FORBES</span><span class="date">Wed, 11 Feb 2026 16:37:34 GMT</span></div><a class="card-title" href="https://www.forbes.com/sites/greatspeculations/2026/02/11/is-datadog-stock-still-a-buy-at-125/" target="_blank" rel="noopener">Is Datadog Stock Still A Buy At $125? - Forbes</a><p>Revenue reached $953 million—representing a 29% growth year-over-year—outperforming the consensus estimate of $916.5 million by 4%. Moreover, management projected fiscal 2026 revenue in the range of $4.06-$4.10 billion, indicating a 20% growth at the midpoint. Q4 revenue increase</p><a class="card-source" href="https://www.forbes.com/sites/greatspeculations/2026/02/11/is-datadog-stock-still-a-buy-at-125/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">FORBES</span><span class="date">Mon, 11 May 2026 00:00:00 GMT</span></div><a class="card-title" href="https://www.forbes.com/sites/greatspeculations/2026/05/11/how-ddog-stock-rises-to-400/" target="_blank" rel="noopener">How DDOG Stock Rises To $400 - Forbes</a><p>Building a platform to do the job of 1 million analysts. Datadog is preparing for the next chapter of enterprise computing, one propelled by the embrace of complex artificial intelligence workloads. Should this platform consolidation transpire, a hypothetical financial model indi</p><a class="card-source" href="https://www.forbes.com/sites/greatspeculations/2026/05/11/how-ddog-stock-rises-to-400/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Mon, 23 Feb 2026 17:11:34 GMT</span></div><a class="card-title" href="https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-tariffs-02-23-2026/card/software-stocks-are-having-another-ugly-day-LlAj9avDeFocxKHzVwRZ" target="_blank" rel="noopener">Software Stocks Are Having Another Ugly Day - WSJ</a><p>Software Stocks Are Having Another Ugly Day. Image 1: Jack Pitcher hedcut. Software Stocks Are Having Another Ugly Day. DJIA 48804.06 -1.66%. S&amp;P 500 6837.75 -1.04%. Nasdaq 22627.27 -1.13%. Russell 2000 2620.99 -1.61%. U.S. 10 Yr 5/32 4.035%. VIX 21.01 10.06%. Gold 5249.40 3.32%.</p><a class="card-source" href="https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-tariffs-02-23-2026/card/software-stocks-are-having-another-ugly-day-LlAj9avDeFocxKHzVwRZ" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Mon, 23 Feb 2026 17:11:34 GMT</span></div><a class="card-title" href="https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-tariffs-02-23-2026/card/software-stocks-are-having-another-ugly-day-LlAj9avDeFocxKHzVwRZ?gaa_at=eafs&amp;gaa_n=AWEtsqfcVwTYXctnp6ZmWJrJiED-V23JEwIsx1ppQbY2WPcLGbvzqARqcyMl&amp;gaa_ts=699d2321&amp;gaa_sig=u9ogq_Qay9-_60LFxxIoPbEdPv2CdJgJ1H1qWHNk_Tbfl_nOVxtRS-lSozInKMF3x6rWjPIUIgnrmSM0-dYqVg%3D%3D" target="_blank" rel="noopener">Software Stocks Are Having Another Ugly Day - WSJ</a><p>Software Stocks Are Having Another Ugly Day. Image 1: Jack Pitcher hedcut. Software Stocks Are Having Another Ugly Day. Asia Dow 5750.43 0.28%. Nikkei 57336.67 0.90%. Hang Seng 26530.49 -2.04%. Shanghai 4129.78 1.17%. BSE Sensex 83294.66 0.58%. Singapore 5005.79 -0.70%. Kospi 594</p><a class="card-source" href="https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-tariffs-02-23-2026/card/software-stocks-are-having-another-ugly-day-LlAj9avDeFocxKHzVwRZ?gaa_at=eafs&amp;gaa_n=AWEtsqfcVwTYXctnp6ZmWJrJiED-V23JEwIsx1ppQbY2WPcLGbvzqARqcyMl&amp;gaa_ts=699d2321&amp;gaa_sig=u9ogq_Qay9-_60LFxxIoPbEdPv2CdJgJ1H1qWHNk_Tbfl_nOVxtRS-lSozInKMF3x6rWjPIUIgnrmSM0-dYqVg%3D%3D" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">REUTERS</span><span class="date">Tue, 10 Feb 2026 11:02:37 GMT</span></div><a class="card-title" href="https://www.reuters.com/business/retail-consumer/spotify-expects-profit-above-estimates-founder-daniel-ek-moves-new-role-2026-02-10/" target="_blank" rel="noopener">Spotify forecasts profit above estimates as founder Daniel Ek moves to new role - Reuters</a><p>Feb 10 (Reuters) - Spotify (SPOT.N), opens new tab forecast first-quarter earnings above Wall Street estimates on Tuesday, as the Swedish streaming company benefits from strong user growth and price hikes, sending its shares up nearly 12% in premarket trading. While price increas</p><a class="card-source" href="https://www.reuters.com/business/retail-consumer/spotify-expects-profit-above-estimates-founder-daniel-ek-moves-new-role-2026-02-10/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Tue, 24 Feb 2026 08:16:39 GMT</span></div><a class="card-title" href="https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-02-24-2026/card/race-to-the-bottom-heard-on-the-street-monday-recap-86BE5gMaA07ogLhxjsxb?mod=lctimeline_finance&amp;gaa_at=eafs&amp;gaa_n=AWEtsqdjnX8Wwqi_KzJ3zK2GccpN6vozZvfEwUbx-kH_-T5y_hOxkJd-xJYE&amp;gaa_ts=699d6a7a&amp;gaa_sig=UYIcdBmANSPv3OlnbAsPLXePsPL6_j5nDbembAZROrhBqwZpK_5-iZlS_elHCzSIFOm8LWilEYaeiDR8-UOXwQ%3D%3D" target="_blank" rel="noopener">Race to the Bottom: Heard on the Street Monday Recap - WSJ</a><p>Race to the Bottom: Heard on the Street Monday Recap. FTSE 100 10660.84 -0.22%. FTSE MIB 46568.73 -0.28%. FTSE 250 23511.06 -0.15%. Stock Market Today: Dow Futures Inch Up After Monday&#x27;s Selloff. Race to the Bottom: Heard on the Street Monday Recap. **Stocks fell sharply, with a </p><a class="card-source" href="https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-02-24-2026/card/race-to-the-bottom-heard-on-the-street-monday-recap-86BE5gMaA07ogLhxjsxb?mod=lctimeline_finance&amp;gaa_at=eafs&amp;gaa_n=AWEtsqdjnX8Wwqi_KzJ3zK2GccpN6vozZvfEwUbx-kH_-T5y_hOxkJd-xJYE&amp;gaa_ts=699d6a7a&amp;gaa_sig=UYIcdBmANSPv3OlnbAsPLXePsPL6_j5nDbembAZROrhBqwZpK_5-iZlS_elHCzSIFOm8LWilEYaeiDR8-UOXwQ%3D%3D" target="_blank" rel="noopener">Lire l&#x27;article →</a></article></div>
 </section>
 <section class="panel" id="panel-2" style="display:none">
   <h2>Sanofi</h2>
-  <div class="columns">
-    <div class="column">
-      <h3>📰 Presse récente (6 derniers mois)</h3>
-      <article class="card"><a class="card-title" href="https://www.biospace.com/press-releases/aqemia-and-sanofi-expand-their-research-collaboration" target="_blank" rel="noopener">Aqemia and Sanofi Expand Their Research Collaboration - BioSpace</a><span class="date">Fri, 17 Jul 2026 13:20:46 GMT</span><p>*A new target nomination and a milestone payment mark the next step of the multi-year partnership first announced in December 2023*. PARIS &amp; LONDON--(BUSINESS WIRE)--#DrugDiscovery--Aqemia, the drug invention company combining generative AI and quantum-inspired physics to invent small molecule drugs, today announced the expansion of its multi-year research collaboration with the global pharmaceuti</p><a class="card-source" href="https://www.biospace.com/press-releases/aqemia-and-sanofi-expand-their-research-collaboration" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.biospace.com/deals/sanofi-bets-up-to-1-53b-in-hong-kong-immuno-pact-adding-to-string-of-deals" target="_blank" rel="noopener">Sanofi Bets Up to $1.53B in Hong Kong Immuno Pact, Adding to String of Deals - BioSpace</a><span class="date">Wed, 04 Mar 2026 12:27:35 GMT</span><p># Sanofi Bets Up to $1.53B in Hong Kong Immuno Pact, Adding to String of Deals. ## Sanofi will gain global exclusive rights over rovadicitinib, an oral JAK/ROCK blocker that has anti-inflammatory and anti-fibrotic effects. It is unclear what diseases Sanofi plans to target with rovadicitinib, but according to Tuesday’s regulatory filing, the asset has been cleared for Phase 2 development in the U.</p><a class="card-source" href="https://www.biospace.com/deals/sanofi-bets-up-to-1-53b-in-hong-kong-immuno-pact-adding-to-string-of-deals" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.reuters.com/business/healthcare-pharmaceuticals/sanofi-targets-high-single-digit-sales-growth-2026-plans-share-buyback-2026-01-29/" target="_blank" rel="noopener">Sanofi targets high single digit sales growth in 2026, plans share buyback - Reuters</a><span class="date">Thu, 29 Jan 2026 06:33:00 GMT</span><p># Sanofi targets high single digit sales growth in 2026, plans share buyback. LONDON, Jan 29 (Reuters) - French drugmaker Sanofi (SASY.PA), opens new tab said on Thursday it expects sales to grow by a high-single-digit percentage in 2026, banking on strong demand for its blockbuster asthma drug Dupixent and some newer medicines. The company also said it expects business operating income to grow sl</p><a class="card-source" href="https://www.reuters.com/business/healthcare-pharmaceuticals/sanofi-targets-high-single-digit-sales-growth-2026-plans-share-buyback-2026-01-29/" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://pharmaphorum.com/news/sanofi-pays-180m-rights-kali-autoimmune-drug" target="_blank" rel="noopener">Sanofi pays $180m for rights to Kali autoimmune drug - pharmaphorum</a><span class="date">Mon, 23 Mar 2026 13:59:54 GMT</span><p>**California biotech Kali Therapeutics has snagged its first major pharma partner, Sanofi, which is committing $180 million in near-term payments for rights to a T-cell engager (TCE) for autoimmune diseases.**. For Sanofi, the deal continues a run of licensing agreements in the immunology and inflammation (I&amp;I) arena as it starts to contemplate the loss of market exclusivity in the early 2030s for</p><a class="card-source" href="https://pharmaphorum.com/news/sanofi-pays-180m-rights-kali-autoimmune-drug" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.biospace.com/deals/sanofi-keeps-immuno-deals-coming-with-kali-bet-worth-potential-1b" target="_blank" rel="noopener">Sanofi Keeps Immuno Deals Coming With Kali Bet Worth Potential $1B+ - BioSpace</a><span class="date">Mon, 23 Mar 2026 12:55:49 GMT</span><p># Sanofi Keeps Immuno Deals Coming With Kali Bet Worth Potential $1B+. ## Kali Therapeutics’ T cell engager, for which Sanofi is initially paying $180 million, could potentially be developed for a range of B cell–driven autoimmune disorders. Sanofi is partnering with California’s Kali Therapeutics to advance a tri-specific antibody targeting autoimmune disorders, continuing the pharma’s recent dea</p><a class="card-source" href="https://www.biospace.com/deals/sanofi-keeps-immuno-deals-coming-with-kali-bet-worth-potential-1b" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.fiercebiotech.com/biotech/sanofi-keeps-mum-future-denali-pact-after-scrapping-final-ripk1-inhibitor" target="_blank" rel="noopener">Sanofi keeps mum on future of disappointing Denali pact after scrapping final RIPK1 inhibitor - Fierce Biotech</a><span class="date">Thu, 29 Jan 2026 10:16:20 GMT</span><p># Sanofi keeps mum on future of disappointing Denali pact after scrapping final RIPK1 inhibitor. Sanofi Denali Therapeutics Licensing deals ulcerative colitis. Sanofi is tight-lipped about the future of its underwhelming pact with Denali Therapeutics after the French pharma scrapped what appeared to be the final RIPK1 inhibitor from the deal. The Paris-based drugmaker revealed in its full-year 202</p><a class="card-source" href="https://www.fiercebiotech.com/biotech/sanofi-keeps-mum-future-denali-pact-after-scrapping-final-ripk1-inhibitor" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.marketscreener.com/news/drugmaker-sanofi-to-expand-india-gcc-increase-workforce-to-over-4-500-employees-ce7e5dd8d988f623" target="_blank" rel="noopener">Drugmaker Sanofi to expand India GCC, increase workforce to over 4,500 employees - marketscreener.com</a><span class="date">Mon, 16 Feb 2026 11:59:23 GMT</span><p>Highlights  Insiders  Transcripts  Press Releases  Official Publications  Other languages  MarketScreener Editorial Features  MarketScreener Strategies  Trading Ideas  Drugmaker Sanofi to expand India GCC, increase workforce to over 4,500 employees Published on 02/16/2026 at 06:59 am EST - Modified on 02/16/2026 at 07:08 am EST  Reuters  Share  SANOFI  +0.40%  ELI LILLY AND COMPANY  +0.17%  NOVO N</p><a class="card-source" href="https://www.marketscreener.com/news/drugmaker-sanofi-to-expand-india-gcc-increase-workforce-to-over-4-500-employees-ce7e5dd8d988f623" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://pharmaphorum.com/news/sanofi-welcomes-incoming-ceo-sales-lift" target="_blank" rel="noopener">Sanofi welcomes incoming CEO with sales lift - pharmaphorum</a><span class="date">Thu, 23 Apr 2026 09:42:17 GMT</span><p>**Sanofi&#x27;s new chief executive, Belén Garijo, will see her tenure at the company kick-started by a strong 2026 first quarter, with a healthy rise in revenues driven by immunology blockbuster Dupixent and newly acquired hepatitis B vaccines.**. At constant exchange rates, Sanofi&#x27;s revenues grew 13.6% in the first three months of the year to just over €10.5 billion, with cash-cow product Dupixent (d</p><a class="card-source" href="https://pharmaphorum.com/news/sanofi-welcomes-incoming-ceo-sales-lift" target="_blank" rel="noopener">Source</a></article>
-    </div>
-    <div class="column">
-      <h3>🔗 LinkedIn (dirigeants suivis)</h3>
-      <p class="empty">Extension LinkedIn non configurée (LINKEDIN_MCP_COMMAND absent du .env). Voir LINKEDIN_MCP.md.</p>
-    </div>
-  </div>
+  <div class="card-grid"><article class="card"><div class="card-top"><span class="outlet">REUTERS</span><span class="date">Thu, 29 Jan 2026 06:33:00 GMT</span></div><a class="card-title" href="https://www.reuters.com/business/healthcare-pharmaceuticals/sanofi-targets-high-single-digit-sales-growth-2026-plans-share-buyback-2026-01-29/" target="_blank" rel="noopener">Sanofi targets high single digit sales growth in 2026, plans share buyback - Reuters</a><p># Sanofi targets high single digit sales growth in 2026, plans share buyback. LONDON, Jan 29 (Reuters) - French drugmaker Sanofi (SASY.PA), opens new tab said on Thursday it expects sales to grow by a high-single-digit percentage in 2026, banking on strong demand for its blockbus</p><a class="card-source" href="https://www.reuters.com/business/healthcare-pharmaceuticals/sanofi-targets-high-single-digit-sales-growth-2026-plans-share-buyback-2026-01-29/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Thu, 29 Jan 2026 06:58:00 GMT</span></div><a class="card-title" href="https://www.wsj.com/business/retail/sanofi-to-launch-1-20-billion-share-buyback-eb7d244d?gaa_at=eafs&amp;gaa_n=AWEtsqdSQDajPgDtLyO5rPRWSmqzXpc_PGltb-dG18Kfz0u65cSrMelWEi_t&amp;gaa_ts=697b1e16&amp;gaa_sig=UkgQouURcSiLpZy3ztV7DnIL0kZjYyx_GtL8seed1e-byXDXdy6qaMHOmK_Kl2fbwg4tJyGC8Z_EtvRo4UXRNA%3D%3D" target="_blank" rel="noopener">Sanofi to Launch $1.20 Billion Share Buyback - The Wall Street Journal</a><p>Sanofi to Launch $1.20 Billion Share Buyback - WSJ. https://www.wsj.com/business/retail/sanofi-to-launch-1-20-billion-share-buyback-eb7d244d. Sanofi to Launch $1.20 Billion Share Buyback. SanofiSAN-2.77%decrease; red down pointing triangle said it would execute a 1 billion-euro (</p><a class="card-source" href="https://www.wsj.com/business/retail/sanofi-to-launch-1-20-billion-share-buyback-eb7d244d?gaa_at=eafs&amp;gaa_n=AWEtsqdSQDajPgDtLyO5rPRWSmqzXpc_PGltb-dG18Kfz0u65cSrMelWEi_t&amp;gaa_ts=697b1e16&amp;gaa_sig=UkgQouURcSiLpZy3ztV7DnIL0kZjYyx_GtL8seed1e-byXDXdy6qaMHOmK_Kl2fbwg4tJyGC8Z_EtvRo4UXRNA%3D%3D" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Thu, 12 Feb 2026 07:08:00 GMT</span></div><a class="card-title" href="https://www.wsj.com/business/c-suite/sanofi-names-merck-kgaas-garijo-to-replace-hudson-as-ceo-3207c1cc?mod=Searchresults&amp;pos=10&amp;page=1" target="_blank" rel="noopener">Sanofi Shares Fall After CEO Change - WSJ</a><p># Sanofi Shares Fall After CEO Change - WSJ. # Sanofi Shares Fall After CEO Change. ## Merck KGaA’s Belen Garijo would succeed Paul Hudson as CEO. Image 1: Belen Garijo, chief executive officer of Merck KGaA, with folded arms, wearing a light-colored turtleneck and glasses. Sanof</p><a class="card-source" href="https://www.wsj.com/business/c-suite/sanofi-names-merck-kgaas-garijo-to-replace-hudson-as-ceo-3207c1cc?mod=Searchresults&amp;pos=10&amp;page=1" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Fri, 23 Jan 2026 06:29:00 GMT</span></div><a class="card-title" href="https://www.wsj.com/health/pharma/sanofi-says-its-amlitelimab-drug-showed-promising-results-in-treating-eczema-306832c4?gaa_at=eafs&amp;gaa_n=AWEtsqflFPIRQGL9MqCOL5B_jPc1f-gmhN1ZPAPqpA99KU-VwH8AcFh1J-I7&amp;gaa_ts=69732407&amp;gaa_sig=M5foLJslzxEtb464xDFvAvzzB77ruilBSrIs55gO27tQV6dMhAGnRZq4TVOzMdTcNavObU5_TFrmvbi712kbQA%3D%3D" target="_blank" rel="noopener">Sanofi Says Its Amlitelimab Drug Showed Promising Results in Treating Eczema - The Wall Street Journal</a><p>Sanofi Says Its Amlitelimab Drug Showed Promising Results in Treating Eczema - WSJ. For non-personal use or to order multiple copies, please contact Dow Jones Reprints at 1-800-843-0008 or visit www.djreprints.com. https://www.wsj.com/health/pharma/sanofi-says-its-amlitelimab-dru</p><a class="card-source" href="https://www.wsj.com/health/pharma/sanofi-says-its-amlitelimab-drug-showed-promising-results-in-treating-eczema-306832c4?gaa_at=eafs&amp;gaa_n=AWEtsqflFPIRQGL9MqCOL5B_jPc1f-gmhN1ZPAPqpA99KU-VwH8AcFh1J-I7&amp;gaa_ts=69732407&amp;gaa_sig=M5foLJslzxEtb464xDFvAvzzB77ruilBSrIs55gO27tQV6dMhAGnRZq4TVOzMdTcNavObU5_TFrmvbi712kbQA%3D%3D" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Mon, 30 Mar 2026 16:38:00 GMT</span></div><a class="card-title" href="https://www.wsj.com/finance/stocks/health-care-roundup-market-talk-ae25dfd9?gaa_at=eafs&amp;gaa_n=AWEtsqcRWIMj52HLS-uJJp58jyQHpjun0qRTjE_GZrBY9glbBEojale1M8U4&amp;gaa_ts=69cab322&amp;gaa_sig=m5oKEbTGc5rCQDiDjokZ1G2BOLCW2CeBw38KB29K7jpaww-vUo-wrINHk9KqardLYnIhbt0bPrDCSwKGcb0jGQ%3D%3D" target="_blank" rel="noopener">Health Care Roundup: Market Talk - WSJ</a><p>Analyst Jayson Bedford says he views results from the company’s CHAMPION-AF trial of one of the Watchman devices as positive, but notes that growth concerns for Watchman and EP, which together represented 26% of sales in 2025, are sapping some enthusiasm around the stock. 0639 ET</p><a class="card-source" href="https://www.wsj.com/finance/stocks/health-care-roundup-market-talk-ae25dfd9?gaa_at=eafs&amp;gaa_n=AWEtsqcRWIMj52HLS-uJJp58jyQHpjun0qRTjE_GZrBY9glbBEojale1M8U4&amp;gaa_ts=69cab322&amp;gaa_sig=m5oKEbTGc5rCQDiDjokZ1G2BOLCW2CeBw38KB29K7jpaww-vUo-wrINHk9KqardLYnIhbt0bPrDCSwKGcb0jGQ%3D%3D" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">REUTERS</span><span class="date">Mon, 16 Feb 2026 12:07:40 GMT</span></div><a class="card-title" href="https://www.reuters.com/world/india/drugmaker-sanofi-expand-india-gcc-increase-workforce-over-4500-employees-2026-02-16/" target="_blank" rel="noopener">Drugmaker Sanofi to expand India GCC, increase workforce to over 4,500 employees - Reuters</a><p>Feb 16 (Reuters) - French drugmaker Sanofi (SASY.PA), opens new tab said on Monday it will expand its global capability centre (GCC) in the southern Indian city of Hyderabad, and increase its workforce to more than 4,500 employees. Multinational companies are increasingly setting</p><a class="card-source" href="https://www.reuters.com/world/india/drugmaker-sanofi-expand-india-gcc-increase-workforce-over-4500-employees-2026-02-16/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">REUTERS</span><span class="date">Thu, 12 Feb 2026 12:34:00 GMT</span></div><a class="card-title" href="https://www.reuters.com/business/healthcare-pharmaceuticals/sanofi-appoints-beln-garijo-new-ceo-after-deciding-not-renew-current-ceo-hudsons-2026-02-12/" target="_blank" rel="noopener">Sanofi ousts CEO Hudson after stalled turnaround at vaccine giant - Reuters</a><p>LONDON, Feb 12 (Reuters) - French drugmaker Sanofi (SASY.PA), opens new tab ousted CEO Paul Hudson on Thursday, ending a six-year tenure marked by a stalled drive to replace blockbuster drugs going off patent and rising pressure from U.S. anti-vaccine policy and rhetoric. The com</p><a class="card-source" href="https://www.reuters.com/business/healthcare-pharmaceuticals/sanofi-appoints-beln-garijo-new-ceo-after-deciding-not-renew-current-ceo-hudsons-2026-02-12/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Wed, 10 Jun 2026 06:28:00 GMT</span></div><a class="card-title" href="https://www.wsj.com/health/pharma/sanofi-to-stop-late-stage-study-of-immune-disorder-drug-1f05296c" target="_blank" rel="noopener">Sanofi to Stop Late-Stage Study of Immune-Disorder Drug - WSJ</a><p># Sanofi to Stop Late-Stage Study of Immune-Disorder Drug - WSJ. https://www.wsj.com/health/pharma/sanofi-to-stop-late-stage-study-of-immune-disorder-drug-1f05296c. # Sanofi to Stop Late-Stage Study of Immune-Disorder Drug. Image 1: The Sanofi logo displayed on the side of a buil</p><a class="card-source" href="https://www.wsj.com/health/pharma/sanofi-to-stop-late-stage-study-of-immune-disorder-drug-1f05296c" target="_blank" rel="noopener">Lire l&#x27;article →</a></article></div>
 </section>
 <section class="panel" id="panel-3" style="display:none">
   <h2>Dassault Systèmes</h2>
-  <div class="columns">
-    <div class="column">
-      <h3>📰 Presse récente (6 derniers mois)</h3>
-      <article class="card"><a class="card-title" href="https://www.tradingview.com/news/reuters.com,2026:newsml_FWN42J0OW:0-dassault-systemes-partners-with-parisant-campus/" target="_blank" rel="noopener">Dassault Systemes Partners With Parisanté Campus - TradingView</a><span class="date">Fri, 12 Jun 2026 05:01:37 GMT</span><p># Dassault Systemes Partners With Parisanté Campus — TradingView News. *   /Dassault Systemes Partners With Parisanté Campus. Sign in or create a free account to read this news. * Image 5 Reuters Refinitiv FlexQube Gets Follow-Up Order Of About $0.9 Million. * Image 6 MFN by Modular Finance Nomination Committee’s proposal for the Board of Directors prior to Elekta’s Annual General Meeting 2026. MF</p><a class="card-source" href="https://www.tradingview.com/news/reuters.com,2026:newsml_FWN42J0OW:0-dassault-systemes-partners-with-parisant-campus/" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.cnbc.com/2026/02/11/dassault-systmes-share-price-earnings-software-sell-off.html" target="_blank" rel="noopener">French software maker Dassault Systèmes plunges 21%, on track for worst day ever - CNBC</a><span class="date">Wed, 11 Feb 2026 08:54:53 GMT</span><p># French software maker Dassault Systèmes plunges 21%, on track for worst day ever. * Dassault Systèmes published its fourth-quarter earnings on Wednesday morning, which showed adjusted revenues from software dropped 5% in the final three months of last year. (Photo credit should read CFOTO/Future Publishing via Getty Images). Cfoto | Future Publishing | Getty Images. Shares of French software gia</p><a class="card-source" href="https://www.cnbc.com/2026/02/11/dassault-systmes-share-price-earnings-software-sell-off.html" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="http://markets.chroniclejournal.com/chroniclejournal/article/marketminute-2026-2-18-the-dassault-exception-shatters-software-giant-plunges-19-on-weak-2026-outlook" target="_blank" rel="noopener">The &quot;Dassault Exception&quot; Shatters: Software Giant Plunges 19% on Weak 2026 Outlook - The Chronicle-Journal</a><span class="date">Wed, 18 Feb 2026 19:33:00 GMT</span><p>In a move that sent shockwaves through the global technology sector, European software powerhouse Dassault Systèmes (Euronext Paris: DSY) saw its market value evaporate on February 11, 2026, as shares plummeted nearly 20%. Investors are now questioning whether traditional software titans can maintain their premium valuations as the industry navigates a messy transition to cloud-based subscriptions</p><a class="card-source" href="http://markets.chroniclejournal.com/chroniclejournal/article/marketminute-2026-2-18-the-dassault-exception-shatters-software-giant-plunges-19-on-weak-2026-outlook" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.reuters.com/business/dassault-systemes-posts-full-year-revenue-growth-clients-shift-cloud-software-2026-02-11/" target="_blank" rel="noopener">Dassault Systemes posts full-year revenue growth as clients shift to cloud software - Reuters</a><span class="date">Wed, 11 Feb 2026 08:52:38 GMT</span><p># Dassault Systemes Q4 revenue, outlook disappoints; shares fall. Feb 11 - French software maker Dassault Systèmes (DAST.PA), opens new tab reported fourth-quarter revenue growth and 2026 revenue guidance which disappointed investors, leaving its shares on track for their worst trading day ever. &quot;This type of growth disappointment in the unforgiving software tape we&#x27;re in is likely to result in a </p><a class="card-source" href="https://www.reuters.com/business/dassault-systemes-posts-full-year-revenue-growth-clients-shift-cloud-software-2026-02-11/" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.automotiveworld.com/news/dassault-systemes-and-nvidia-launch-ai-platform/" target="_blank" rel="noopener">Dassault Systèmes and Nvidia launch AI platform - Automotive World</a><span class="date">Fri, 06 Feb 2026 05:50:43 GMT</span><p>Dassault Systèmes and Nvidia will develop an industrial AI platform combining Virtual Twin technologies with AI infrastructure. Dassault Systèmes and Nvidia have announced a long-term strategic partnership to develop an industrial artificial intelligence (AI) platform combining Virtual Twin technologies with AI infrastructure for applications across biology, materials science, engineering and manu</p><a class="card-source" href="https://www.automotiveworld.com/news/dassault-systemes-and-nvidia-launch-ai-platform/" target="_blank" rel="noopener">Source</a></article>
-<article class="card"><a class="card-title" href="https://www.stocktitan.net/news/NVDA/dassault-systemes-and-nvidia-partner-to-build-industrial-ai-platform-4h5sbhpv2og9.html" target="_blank" rel="noopener">NVIDIA and Dassault bring virtual twin AI to factories, biology and materials - Stock Titan</a><span class="date">Tue, 03 Feb 2026 16:00:00 GMT</span><p>Combining Dassault Systèmes’ Virtual Twin technologies with NVIDIA AI infrastructure, open models and accelerated software libraries will establish science-validated industry World Models, and new ways of working through skilled virtual companions on the agentic 3DEXPERIENCE platform, that empower professionals with new expertise. This infrastructure will power Dassault Systèmes’ industrial Virtua</p><a class="card-source" href="https://www.stocktitan.net/news/NVDA/dassault-systemes-and-nvidia-partner-to-build-industrial-ai-platform-4h5sbhpv2og9.html" target="_blank" rel="noopener">Source</a></article>
-    </div>
-    <div class="column">
-      <h3>🔗 LinkedIn (dirigeants suivis)</h3>
-      <p class="empty">Extension LinkedIn non configurée (LINKEDIN_MCP_COMMAND absent du .env). Voir LINKEDIN_MCP.md.</p>
-    </div>
-  </div>
+  <div class="card-grid"><article class="card"><div class="card-top"><span class="outlet">REUTERS</span><span class="date">Wed, 11 Feb 2026 08:52:38 GMT</span></div><a class="card-title" href="https://www.reuters.com/business/dassault-systemes-posts-full-year-revenue-growth-clients-shift-cloud-software-2026-02-11/" target="_blank" rel="noopener">Dassault Systemes posts full-year revenue growth as clients shift to cloud software - Reuters</a><p># Dassault Systemes Q4 revenue, outlook disappoints; shares fall. Feb 11 - French software maker Dassault Systèmes (DAST.PA), opens new tab reported fourth-quarter revenue growth and 2026 revenue guidance which disappointed investors, leaving its shares on track for their worst t</p><a class="card-source" href="https://www.reuters.com/business/dassault-systemes-posts-full-year-revenue-growth-clients-shift-cloud-software-2026-02-11/" target="_blank" rel="noopener">Lire l&#x27;article →</a></article>
+<article class="card"><div class="card-top"><span class="outlet">WSJ</span><span class="date">Mon, 23 Feb 2026 07:04:00 GMT</span></div><a class="card-title" href="https://www.wsj.com/business/dassault-systemes-co-founder-steps-down-73018e7f?gaa_at=eafs&amp;gaa_n=AWEtsqeYIgfzckTgMBrhw4aR0GECw2WSTHLK9ShS5VCa8QI3xRm55lB8L3nH&amp;gaa_ts=699c0017&amp;gaa_sig=wI-Rp8kUVInFTa_MmXQ7_GTGkuIixCp3gNjyreLknSo6NEKML-5ZjEiPEp8_UEBTloW6ZmhNIeLsxNDedyvoqw%3D%3D" target="_blank" rel="noopener">Dassault Systemes Co-Founder Steps Down - The Wall Street Journal</a><p>Pascal Daloz to Replace Bernard Charles as Dassault Systemes Chairman - WSJ. Image 1: Bernard Charles, CEO of Dassault Systemes, at the Viva Technology conference in Paris. Bernard Charles is stepping down as executive chairman of Dassault Systemes for personal reasons. Dassault </p><a class="card-source" href="https://www.wsj.com/business/dassault-systemes-co-founder-steps-down-73018e7f?gaa_at=eafs&amp;gaa_n=AWEtsqeYIgfzckTgMBrhw4aR0GECw2WSTHLK9ShS5VCa8QI3xRm55lB8L3nH&amp;gaa_ts=699c0017&amp;gaa_sig=wI-Rp8kUVInFTa_MmXQ7_GTGkuIixCp3gNjyreLknSo6NEKML-5ZjEiPEp8_UEBTloW6ZmhNIeLsxNDedyvoqw%3D%3D" target="_blank" rel="noopener">Lire l&#x27;article →</a></article></div>
 </section></main>
+<footer><p class="meta">Actualisé automatiquement le 2026-07-20 15:18.</p></footer>
 <script>
 function showClient(index) {
   document.querySelectorAll('.panel').forEach((p, i) => { p.style.display = (i === index) ? 'block' : 'none'; });
@@ -165,13 +196,9 @@ function addDynamicPanel(data) {
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.id = 'panel-' + index;
-  panel.innerHTML = '<h2></h2><div class="columns">' +
-    '<div class="column"><h3>📰</h3><div class="press"></div></div>' +
-    '<div class="column"><h3>🔗</h3><div class="linkedin"></div></div>' +
-    '</div>';
+  panel.innerHTML = '<h2></h2><div class="card-grid"></div>';
   panel.querySelector('h2').textContent = data.name;
-  panel.querySelector('.press').innerHTML = data.press_html;
-  panel.querySelector('.linkedin').innerHTML = data.linkedin_html;
+  panel.querySelector('.card-grid').innerHTML = data.press_html;
   document.querySelector('main').appendChild(panel);
 
   const tab = document.createElement('button');

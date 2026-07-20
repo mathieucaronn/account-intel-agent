@@ -1,35 +1,35 @@
 # Account Intel Dashboard 🕵️
 
 Dashboard d'**account intelligence** pour équipes commerciales : une revue de
-presse et de posts LinkedIn par client suivi, pour préparer des conversations
-sans rester scotché aux alertes Google, en agrégeant **uniquement des données
-publiques**.
+presse par client suivi, limitée aux grands médias reconnus (Reuters, WSJ,
+Le Monde, BBC, Le Figaro, CNN...), en agrégeant **uniquement des données
+publiques**. Se met à jour automatiquement, sans intervention manuelle une
+fois configuré.
 
 ## Ce que montre le dashboard
 
-Un fichier HTML statique avec un sélecteur de client en haut (Sanofi,
-Dassault Systèmes...) et, pour le client sélectionné, deux colonnes :
-
-- 📰 **Presse récente** (6 derniers mois) — titre, date, extrait, lien source
-- 🔗 **LinkedIn des dirigeants suivis** — profil/activité récente *(extension
-  optionnelle et non conforme aux CGU LinkedIn, voir plus bas)*
+Une page avec un sélecteur de client en haut (Sanofi, Dassault Systèmes...),
+une barre de recherche pour interroger n'importe quelle autre entreprise, et
+pour le client sélectionné : ses articles de presse récents (6 derniers
+mois) — titre, média, date, extrait, lien vers l'article.
 
 ## Fonctionnement
 
 ```
-clients.json (clients suivis + dirigeants)
+clients.json (liste des clients suivis)
       │
       ▼
-1. Recherche presse (Tavily)     ── par client
-2. LinkedIn (optionnel)          ── par dirigeant configuré
-3. Rendu HTML statique           ── output/dashboard.html
+1. Recherche presse (Tavily)      ── par client, filtrée aux grands médias
+2. Rendu HTML statique            ── docs/index.html
+3. GitHub Actions (quotidien)     ── régénère et republie automatiquement
 ```
 
 Python pur, 2 dépendances (`requests`, `python-dotenv`), pas de framework
-d'agent ni de serveur web permanent : le dashboard est régénéré à la demande
-en relançant la commande, puis s'ouvre comme un simple fichier HTML.
+d'agent. Le dashboard tourne sur GitHub (Actions + Pages) : une fois publié,
+personne n'a besoin d'exécuter de code pour le consulter ou pour qu'il reste
+à jour.
 
-## Installation
+## Installation (pour développer / tester en local)
 
 ```bash
 git clone https://github.com/<votre-compte>/account-intel-agent.git
@@ -42,7 +42,6 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-cp clients.example.json clients.json
 ```
 
 Renseignez dans `.env` :
@@ -53,24 +52,16 @@ Renseignez dans `.env` :
 | `DEFAULT_LANG` | *(optionnel)* `fr` ou `en` | défaut : `fr` |
 | `CLIENTS_PATH` | *(optionnel)* chemin du fichier de clients | défaut : `clients.json` |
 
-Puis éditez `clients.json` avec vos clients suivis (ce fichier est ignoré par
-git — il peut contenir des noms de clients réels) :
+`clients.json` liste les clients suivis (ce fichier est suivi par git — ce
+sont juste des noms d'entreprises, pas des données sensibles) :
 
 ```json
-[
-  { "name": "Sanofi", "executives": [] },
-  { "name": "Dassault Systèmes", "executives": [] }
-]
+["Sanofi", "Dassault Systèmes"]
 ```
 
-`executives` alimente la colonne LinkedIn (extension optionnelle et
-désactivée par défaut, voir plus bas) ; laissez `[]` si vous ne suivez que
-la presse pour ce client.
+`.env` reste ignoré par git ; aucun secret n'est stocké dans le code.
 
-Aucun secret n'est stocké dans le code ; `.env` et `clients.json` sont
-ignorés par git.
-
-## Utilisation
+## Utilisation en local
 
 ```bash
 # Régénère le dashboard pour tous les clients de clients.json
@@ -82,63 +73,59 @@ python -m account_intel --add "Danone"
 # Inclut ponctuellement une entreprise sans l'enregistrer
 python -m account_intel "L'Oréal"
 
-# Dashboard en anglais, chemin de sortie personnalisé
-python -m account_intel --lang en --out dashboards/team.html
-
 # Génère le dashboard, démarre un serveur local et l'ouvre dans le
 # navigateur, avec la barre de recherche active (recherche n'importe
 # quelle entreprise à la volée sans relancer de commande)
 python -m account_intel --serve
 ```
 
-Sortie par défaut : `output/dashboard.html` — ouvrez-le directement dans un
-navigateur (`open output/dashboard.html` sur macOS). Il n'y a pas de
-rafraîchissement automatique à chaque visite : relancez la commande quand
-vous voulez des données à jour (chaque génération consomme du quota
-Tavily).
+Sortie par défaut : `output/dashboard.html` (`open output/dashboard.html`
+sur macOS).
 
-## Partager un lien fixe (GitHub Pages)
+## Publication automatique (GitHub Pages + Actions)
 
-Pour donner un lien à ouvrir sans rien installer (utile pour un manager, un
-tuteur de stage...), publiez le dashboard sur GitHub Pages :
+Le dashboard publié vit dans `docs/index.html` et se régénère **tout seul**,
+sans PC ni intervention : un workflow GitHub Actions
+([.github/workflows/refresh-dashboard.yml](.github/workflows/refresh-dashboard.yml))
+tourne chaque jour, relance la collecte et republie `docs/index.html` si le
+contenu a changé.
 
-```bash
-python -m account_intel --out docs/index.html
-git add docs/index.html
-git commit -m "Mise à jour du dashboard"
-git push
-```
+Mise en place (une seule fois) :
 
-Puis activez GitHub Pages une fois dans les paramètres du repo (Settings →
-Pages → Source : branche `main`, dossier `/docs`). Le lien obtenu
-(`https://<votre-compte>.github.io/<repo>/`) affiche une **photo figée** au
-moment de la dernière publication, pas des données en temps réel — la barre
-de recherche y indiquera qu'elle est indisponible (pas de serveur derrière
-une page statique). Répétez ces 3 commandes pour rafraîchir le contenu vu
-par la personne qui a le lien.
+1. Dans les paramètres du repo GitHub : **Settings → Secrets and variables →
+   Actions**, ajoutez un secret `TAVILY_API_KEY` avec votre clé Tavily.
+2. **Settings → Pages** : Source = branche `main`, dossier `/docs`.
+3. C'est tout. Le lien obtenu (`https://<compte>.github.io/<repo>/`)
+   affiche désormais un dashboard qui se rafraîchit chaque jour tout seul —
+   à partager tel quel, aucune action requise de la personne qui le
+   consulte.
+
+La barre de recherche reste visible sur la page publiée mais y est
+désactivée (indisponible sans serveur derrière une page statique) : c'est
+attendu, elle ne fonctionne qu'en local avec `--serve`.
 
 ## Respect des sources
 
-- ❌ Pas de scraping de LinkedIn par défaut, ni d'aucune plateforme l'interdisant dans ses CGU
-- ✅ API de recherche officielle (Tavily) et presse librement accessible
-- ✅ Chaque article de presse pointe vers sa source
-
-## Extension optionnelle : LinkedIn
-
-Une extension expérimentale et **non conforme aux CGU LinkedIn** existe pour
-alimenter la colonne LinkedIn à partir des dirigeants listés dans
-`clients.json` (désactivée par défaut, opt-in explicite requis) : voir
-[LINKEDIN_MCP.md](LINKEDIN_MCP.md) avant utilisation.
+- ✅ API de recherche officielle (Tavily), limitée à une liste de grands
+  médias reconnus (voir `MAJOR_NEWS_DOMAINS` dans
+  [account_intel/search.py](account_intel/search.py))
+- ✅ Chaque article pointe vers sa source d'origine
+- ❌ Pas de scraping de LinkedIn ni d'aucune plateforme l'interdisant dans
+  ses CGU
 
 ## Limites connues
 
-- La couverture presse dépend de l'empreinte publique du client (les PME
-  discrètes remontent moins d'articles).
+- La couverture dépend de l'empreinte d'un client dans les grands médias
+  suivis : une entreprise peu couverte par la presse généraliste peut
+  afficher « aucun article trouvé » — c'est volontaire (mieux vaut rien
+  qu'un résultat hors sujet).
 - Risque d'homonymie sur les noms ambigus : précisez si besoin (ex.
   `"Mistral AI"` plutôt que `"Mistral"`).
-- Pas de déduplication ni de synthèse IA : c'est une revue de résultats
-  bruts organisés, pas un résumé rédigé — volontairement, pour rester simple
-  et éviter les coûts/erreurs d'un LLM sur du contenu non filtré.
+- Pas de déduplication ni de synthèse IA : c'est une revue d'articles
+  organisée, pas un résumé rédigé — volontairement, pour rester simple et
+  éviter les coûts/erreurs d'un LLM.
+- Habillage visuel inspiré des couleurs de Cisco Blue à titre de projet de
+  stage personnel ; ce n'est pas un produit officiel Cisco.
 
 ## Licence
 

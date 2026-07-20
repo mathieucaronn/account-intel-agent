@@ -1,51 +1,39 @@
-"""Collecte les données par client suivi et génère un dashboard HTML statique
-(presse d'un côté, posts/profils LinkedIn de l'autre), régénéré à la demande."""
+"""Collecte la presse par client suivi et génère un dashboard HTML statique,
+régénéré automatiquement (voir .github/workflows/refresh-dashboard.yml)."""
 
 import html
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from . import linkedin_optional, search
+from . import search
 
 LABELS = {
     "fr": {
-        "title": "Dashboard account intelligence",
-        "generated": "Régénéré le {date}. Relancez `python -m account_intel` pour rafraîchir.",
-        "press_heading": "📰 Presse récente (6 derniers mois)",
-        "linkedin_heading": "🔗 LinkedIn (dirigeants suivis)",
-        "no_press": "Aucun article trouvé.",
+        "title": "Account Intelligence",
+        "subtitle": "Revue de presse par compte, sources grand public uniquement",
+        "generated": "Actualisé automatiquement le {date}.",
+        "no_press": "Aucun article trouvé dans les grands médias suivis pour cette entreprise.",
         "press_error": "Recherche presse indisponible : {error}",
-        "no_executives": "Aucun dirigeant configuré pour ce client — ajoutez-le dans clients.json.",
-        "linkedin_disabled": "Extension LinkedIn non configurée (LINKEDIN_MCP_COMMAND absent du .env). Voir LINKEDIN_MCP.md.",
-        "linkedin_disclaimer": "⚠️ Source non officielle, hors CGU LinkedIn (voir LINKEDIN_MCP.md).",
-        "linkedin_error": "Échec de récupération : {error}",
-        "linkedin_username_missing": "Identifiant LinkedIn manquant (champ linkedin_username dans clients.json).",
-        "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json (voir clients.example.json) ou lancez avec des noms d'entreprise en argument.",
-        "source": "Source",
+        "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json ou lancez avec des noms d'entreprise en argument.",
+        "source": "Lire l'article",
         "search_placeholder": "Rechercher une entreprise...",
         "search_button": "Rechercher",
         "search_loading": "Recherche en cours...",
-        "search_unavailable": "Recherche indisponible : lancez `python -m account_intel --serve` pour l'activer.",
+        "search_unavailable": "Recherche indisponible sur cette page statique : lancez `python -m account_intel --serve` en local pour l'activer.",
     },
     "en": {
-        "title": "Account intelligence dashboard",
-        "generated": "Regenerated on {date}. Re-run `python -m account_intel` to refresh.",
-        "press_heading": "📰 Recent press (last 6 months)",
-        "linkedin_heading": "🔗 LinkedIn (tracked executives)",
-        "no_press": "No articles found.",
+        "title": "Account Intelligence",
+        "subtitle": "Per-account press review, major outlets only",
+        "generated": "Automatically refreshed on {date}.",
+        "no_press": "No articles found in tracked major outlets for this company.",
         "press_error": "Press search unavailable: {error}",
-        "no_executives": "No executives configured for this client — add them in clients.json.",
-        "linkedin_disabled": "LinkedIn extension not configured (LINKEDIN_MCP_COMMAND missing from .env). See LINKEDIN_MCP.md.",
-        "linkedin_disclaimer": "⚠️ Unofficial source, outside LinkedIn ToS (see LINKEDIN_MCP.md).",
-        "linkedin_error": "Fetch failed: {error}",
-        "linkedin_username_missing": "Missing LinkedIn username (linkedin_username field in clients.json).",
-        "no_clients": "No tracked clients. Add some in clients.json (see clients.example.json) or run with company names as arguments.",
-        "source": "Source",
+        "no_clients": "No tracked clients. Add some in clients.json or run with company names as arguments.",
+        "source": "Read article",
         "search_placeholder": "Search for a company...",
         "search_button": "Search",
         "search_loading": "Searching...",
-        "search_unavailable": "Search unavailable: run `python -m account_intel --serve` to enable it.",
+        "search_unavailable": "Search unavailable on this static page: run `python -m account_intel --serve` locally to enable it.",
     },
 }
 
@@ -53,45 +41,20 @@ LABELS = {
 @dataclass
 class ClientData:
     name: str
-    executives: list
     press: list = field(default_factory=list)
     press_error: str = None
-    linkedin: list = field(default_factory=list)  # [{"person","status","content"?,"error"?}]
 
 
-def collect_client(
-    tavily_client: search.TavilyClient,
-    linkedin_command: str,
-    client_name: str,
-    executives: list,
-    lang: str,
-) -> ClientData:
-    data = ClientData(name=client_name, executives=executives)
-
+def collect_client(tavily_client: search.TavilyClient, client_name: str, lang: str) -> ClientData:
+    data = ClientData(name=client_name)
     try:
         data.press = search.collect_press(tavily_client, client_name, lang)
     except search.SearchError as exc:
         data.press_error = str(exc)
-
-    if not linkedin_command:
-        return data
-
-    for exec_ in executives:
-        if not exec_.linkedin_username:
-            data.linkedin.append({"person": exec_.name, "status": "unconfigured"})
-            continue
-        try:
-            result = linkedin_optional.fetch_profile(
-                linkedin_command, exec_.linkedin_username
-            )
-            data.linkedin.append({"person": exec_.name, "status": "ok", **result})
-        except linkedin_optional.LinkedInMCPError as exc:
-            data.linkedin.append({"person": exec_.name, "status": "error", "error": str(exc)})
-
     return data
 
 
-def render_html(clients_data: list, lang: str, linkedin_enabled: bool) -> str:
+def render_html(clients_data: list, lang: str) -> str:
     labels = LABELS[lang]
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -105,130 +68,180 @@ def render_html(clients_data: list, lang: str, linkedin_enabled: bool) -> str:
             for i, c in enumerate(clients_data)
         )
         panels_html = "\n".join(
-            _render_panel(c, i, labels, linkedin_enabled)
-            for i, c in enumerate(clients_data)
+            _render_panel(c, i, labels) for i, c in enumerate(clients_data)
         )
 
     return f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(labels['title'])}</title>
 <style>{_CSS}</style>
 </head>
 <body
-  data-search-placeholder="{html.escape(labels['search_placeholder'])}"
   data-search-loading="{html.escape(labels['search_loading'])}"
   data-search-unavailable="{html.escape(labels['search_unavailable'])}"
 >
 <header>
-  <h1>{html.escape(labels['title'])}</h1>
-  <p class="meta">{html.escape(labels['generated'].format(date=generated_at))}</p>
-  <div class="search-bar">
-    <input type="text" id="search-input" placeholder="{html.escape(labels['search_placeholder'])}">
-    <button onclick="searchCompany()">{html.escape(labels['search_button'])}</button>
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div>
+        <h1>{html.escape(labels['title'])}</h1>
+        <p class="subtitle">{html.escape(labels['subtitle'])}</p>
+      </div>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="{html.escape(labels['search_placeholder'])}">
+      <button onclick="searchCompany()">{html.escape(labels['search_button'])}</button>
+    </div>
   </div>
   <p id="search-status"></p>
   <nav class="tabs">{tabs_html}</nav>
 </header>
 <main>{panels_html}</main>
+<footer><p class="meta">{html.escape(labels['generated'].format(date=generated_at))}</p></footer>
 <script>{_JS}</script>
 </body>
 </html>
 """
 
 
-def _render_panel(client: ClientData, index: int, labels: dict, linkedin_enabled: bool) -> str:
+def _render_panel(client: ClientData, index: int, labels: dict) -> str:
     press_html = render_press(client, labels)
-    linkedin_html = render_linkedin(client, labels, linkedin_enabled)
     display = "block" if index == 0 else "none"
     return f"""<section class="panel" id="panel-{index}" style="display:{display}">
   <h2>{html.escape(client.name)}</h2>
-  <div class="columns">
-    <div class="column">
-      <h3>{html.escape(labels['press_heading'])}</h3>
-      {press_html}
-    </div>
-    <div class="column">
-      <h3>{html.escape(labels['linkedin_heading'])}</h3>
-      {linkedin_html}
-    </div>
-  </div>
+  <div class="card-grid">{press_html}</div>
 </section>"""
 
 
 def render_press(client: ClientData, labels: dict) -> str:
     if client.press_error:
-        return f'<p class="error">{html.escape(labels["press_error"].format(error=client.press_error))}</p>'
+        return f'<p class="empty error">{html.escape(labels["press_error"].format(error=client.press_error))}</p>'
     if not client.press:
         return f'<p class="empty">{html.escape(labels["no_press"])}</p>'
     cards = []
     for r in client.press:
         title = html.escape(r.get("title", "Sans titre"))
         url = html.escape(r.get("url", ""))
+        source_name = html.escape(_source_name(r.get("url", "")))
         date = r.get("published_date", "")
         date_html = f'<span class="date">{html.escape(date)}</span>' if date else ""
-        content = html.escape(r.get("content", "").strip()[:400])
+        content = html.escape(r.get("content", "").strip()[:280])
         cards.append(
             f'<article class="card">'
+            f'<div class="card-top"><span class="outlet">{source_name}</span>{date_html}</div>'
             f'<a class="card-title" href="{url}" target="_blank" rel="noopener">{title}</a>'
-            f"{date_html}"
             f'<p>{content}</p>'
-            f'<a class="card-source" href="{url}" target="_blank" rel="noopener">{html.escape(labels["source"])}</a>'
+            f'<a class="card-source" href="{url}" target="_blank" rel="noopener">{html.escape(labels["source"])} →</a>'
             f"</article>"
         )
     return "\n".join(cards)
 
 
-def render_linkedin(client: ClientData, labels: dict, linkedin_enabled: bool) -> str:
-    if not linkedin_enabled:
-        return f'<p class="empty">{html.escape(labels["linkedin_disabled"])}</p>'
-    if not client.executives:
-        return f'<p class="empty">{html.escape(labels["no_executives"])}</p>'
-    cards = [f'<p class="disclaimer">{html.escape(labels["linkedin_disclaimer"])}</p>']
-    for entry in client.linkedin:
-        person = html.escape(entry["person"])
-        if entry["status"] == "error":
-            body = f'<p class="error">{html.escape(labels["linkedin_error"].format(error=entry["error"]))}</p>'
-        elif entry["status"] == "unconfigured":
-            body = f'<p class="empty">{html.escape(labels["linkedin_username_missing"])}</p>'
-        else:
-            body = f'<p>{html.escape(entry.get("content", "")[:800])}</p>'
-        cards.append(f'<article class="card"><h4>{person}</h4>{body}</article>')
-    return "\n".join(cards)
+def _source_name(url: str) -> str:
+    from urllib.parse import urlparse
+
+    domain = urlparse(url).netloc.replace("www.", "")
+    return domain.split(".")[0].upper() if domain else ""
 
 
 _CSS = """
-:root { color-scheme: light; }
-body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; background: #f4f5f7; color: #1c2333; }
-header { background: #1a3c6e; color: white; padding: 20px 32px; }
-header h1 { margin: 0 0 4px; font-size: 22px; }
-.meta { margin: 0 0 16px; font-size: 13px; opacity: 0.85; }
-.search-bar { display: flex; gap: 8px; margin-bottom: 10px; max-width: 420px; }
-.search-bar input { flex: 1; padding: 8px 10px; border-radius: 6px; border: none; font-size: 14px; }
-.search-bar button { border: none; background: #2f5aa0; color: white; padding: 8px 16px;
-  border-radius: 6px; cursor: pointer; font-size: 14px; }
-.search-bar button:hover { background: #3b6cbf; }
-#search-status { font-size: 13px; margin: 0 0 12px; min-height: 16px; opacity: 0.9; }
-.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.tab { border: none; background: rgba(255,255,255,0.15); color: white; padding: 8px 14px;
-  border-radius: 6px; cursor: pointer; font-size: 14px; }
-.tab.active, .tab:hover { background: white; color: #1a3c6e; }
-main { padding: 24px 32px; }
-.panel h2 { margin-top: 0; }
-.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-.column h3 { font-size: 15px; color: #1a3c6e; }
-.card { background: white; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.card-title { font-weight: 600; text-decoration: none; color: #1c2333; display: block; margin-bottom: 4px; }
-.card-title:hover { text-decoration: underline; }
-.date { font-size: 12px; color: #6b7280; display: block; margin-bottom: 6px; }
-.card p { font-size: 14px; line-height: 1.5; margin: 6px 0; color: #374151; }
-.card-source { font-size: 12px; }
+:root {
+  color-scheme: light;
+  --cisco-blue: #049fd9;
+  --cisco-blue-dark: #005073;
+  --ink: #0d1a26;
+  --muted: #5b6b79;
+  --bg: #f5f8fa;
+  --card: #ffffff;
+  --border: #e1e8ed;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  margin: 0; background: var(--bg); color: var(--ink);
+}
+header {
+  background: linear-gradient(135deg, var(--cisco-blue-dark) 0%, var(--cisco-blue) 100%);
+  color: white; padding: 24px 32px 0;
+}
+.header-inner {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  flex-wrap: wrap; gap: 16px; padding-bottom: 20px;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  background: white;
+  background-image: radial-gradient(circle at 30% 30%, rgba(4,159,217,0.9), rgba(0,80,115,0.9));
+}
+header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.subtitle { margin: 2px 0 0; font-size: 13px; color: rgba(255,255,255,0.85); }
+.search-bar { display: flex; gap: 8px; }
+.search-bar input {
+  width: 240px; padding: 9px 12px; border-radius: 8px; border: 1px solid transparent;
+  font-size: 14px; outline: none;
+}
+.search-bar input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,0.5); }
+.search-bar button {
+  border: none; background: rgba(255,255,255,0.18); color: white; padding: 9px 18px;
+  border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+  transition: background 0.15s ease;
+}
+.search-bar button:hover { background: rgba(255,255,255,0.32); }
+#search-status {
+  color: white; font-size: 13px; margin: 0; min-height: 18px; opacity: 0.9;
+  padding: 0 32px;
+}
+.tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 32px 0; margin: 0;
+  border-top: 1px solid rgba(255,255,255,0.15);
+}
+.tab {
+  border: none; background: transparent; color: rgba(255,255,255,0.75);
+  padding: 10px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px;
+  font-weight: 500; transition: background 0.15s ease, color 0.15s ease;
+}
+.tab:hover { background: rgba(255,255,255,0.12); color: white; }
+.tab.active { background: var(--bg); color: var(--cisco-blue-dark); font-weight: 700; }
+main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
+.panel { animation: fade-in 0.25s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.panel h2 { margin: 0 0 18px; font-size: 20px; color: var(--ink); }
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+}
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(13,26,38,0.08); }
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.outlet {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--cisco-blue-dark);
+  background: rgba(4,159,217,0.1); padding: 3px 8px; border-radius: 999px;
+}
+.date { font-size: 12px; color: var(--muted); }
+.card-title { font-weight: 600; text-decoration: none; color: var(--ink); line-height: 1.35; }
+.card-title:hover { color: var(--cisco-blue-dark); }
+.card p { font-size: 13.5px; line-height: 1.55; margin: 0; color: var(--muted); flex-grow: 1; }
+.card-source {
+  font-size: 12.5px; font-weight: 600; color: var(--cisco-blue); text-decoration: none; margin-top: 4px;
+}
+.card-source:hover { text-decoration: underline; }
+.empty { color: var(--muted); font-style: italic; grid-column: 1 / -1; }
 .error { color: #b91c1c; }
-.empty { color: #6b7280; font-style: italic; }
-.disclaimer { font-size: 12px; color: #92400e; background: #fef3c7; padding: 8px 10px; border-radius: 6px; }
-@media (max-width: 800px) { .columns { grid-template-columns: 1fr; } }
+footer { padding: 24px 32px 32px; max-width: 1280px; margin: 0 auto; }
+.meta { margin: 0; font-size: 12.5px; color: var(--muted); }
+@media (max-width: 640px) {
+  .header-inner { flex-direction: column; }
+  .search-bar input { width: 100%; }
+  .search-bar { width: 100%; }
+}
 """
 
 _JS = """
@@ -271,13 +284,9 @@ function addDynamicPanel(data) {
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.id = 'panel-' + index;
-  panel.innerHTML = '<h2></h2><div class="columns">' +
-    '<div class="column"><h3>📰</h3><div class="press"></div></div>' +
-    '<div class="column"><h3>🔗</h3><div class="linkedin"></div></div>' +
-    '</div>';
+  panel.innerHTML = '<h2></h2><div class="card-grid"></div>';
   panel.querySelector('h2').textContent = data.name;
-  panel.querySelector('.press').innerHTML = data.press_html;
-  panel.querySelector('.linkedin').innerHTML = data.linkedin_html;
+  panel.querySelector('.card-grid').innerHTML = data.press_html;
   document.querySelector('main').appendChild(panel);
 
   const tab = document.createElement('button');
