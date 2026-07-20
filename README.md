@@ -107,6 +107,13 @@ Pour ajouter/retirer un client suivi : éditez `clients.json` sur GitHub (pas
 besoin de repasser en local), le prochain passage du workflow régénère le
 dashboard avec la nouvelle liste.
 
+Pour un dashboard **entièrement en français ou entièrement en anglais**
+(labels, requêtes et sources interrogées) : **Settings → Secrets and
+variables → Actions → onglet Variables** (pas Secrets, `DEFAULT_LANG` n'est
+pas sensible), ajoutez une variable `DEFAULT_LANG` = `fr` ou `en`. En `fr`,
+la presse française reste mélangée aux grands médias internationaux (déjà
+demandé) ; en `en`, seuls les médias internationaux sont interrogés.
+
 ## Respect des sources
 
 - ✅ API de recherche officielle (Tavily), limitée à une liste de grands
