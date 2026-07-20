@@ -5,6 +5,7 @@ import html
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from . import search
 
@@ -13,27 +14,23 @@ LABELS = {
         "title": "Account Intelligence",
         "subtitle": "Revue de presse par compte, sources grand public uniquement",
         "generated": "Actualisé automatiquement le {date}.",
+        "summary_heading": "Résumé du jour",
+        "headlines_heading": "Grands titres",
         "no_press": "Aucun article trouvé dans les grands médias suivis pour cette entreprise.",
         "press_error": "Recherche presse indisponible : {error}",
-        "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json ou lancez avec des noms d'entreprise en argument.",
+        "no_clients": "Aucun client suivi. Ajoutez-en dans clients.json.",
         "source": "Lire l'article",
-        "search_placeholder": "Rechercher une entreprise...",
-        "search_button": "Rechercher",
-        "search_loading": "Recherche en cours...",
-        "search_unavailable": "Recherche indisponible sur cette page statique : lancez `python -m account_intel --serve` en local pour l'activer.",
     },
     "en": {
         "title": "Account Intelligence",
         "subtitle": "Per-account press review, major outlets only",
         "generated": "Automatically refreshed on {date}.",
+        "summary_heading": "Today's summary",
+        "headlines_heading": "Top headlines",
         "no_press": "No articles found in tracked major outlets for this company.",
         "press_error": "Press search unavailable: {error}",
-        "no_clients": "No tracked clients. Add some in clients.json or run with company names as arguments.",
+        "no_clients": "No tracked clients. Add some in clients.json.",
         "source": "Read article",
-        "search_placeholder": "Search for a company...",
-        "search_button": "Search",
-        "search_loading": "Searching...",
-        "search_unavailable": "Search unavailable on this static page: run `python -m account_intel --serve` locally to enable it.",
     },
 }
 
@@ -42,13 +39,16 @@ LABELS = {
 class ClientData:
     name: str
     press: list = field(default_factory=list)
+    answer: str = None
     press_error: str = None
 
 
 def collect_client(tavily_client: search.TavilyClient, client_name: str, lang: str) -> ClientData:
     data = ClientData(name=client_name)
     try:
-        data.press = search.collect_press(tavily_client, client_name, lang)
+        result = search.collect_press(tavily_client, client_name, lang)
+        data.press = result["results"]
+        data.answer = result["answer"]
     except search.SearchError as exc:
         data.press_error = str(exc)
     return data
@@ -79,10 +79,7 @@ def render_html(clients_data: list, lang: str) -> str:
 <title>{html.escape(labels['title'])}</title>
 <style>{_CSS}</style>
 </head>
-<body
-  data-search-loading="{html.escape(labels['search_loading'])}"
-  data-search-unavailable="{html.escape(labels['search_unavailable'])}"
->
+<body>
 <header>
   <div class="header-inner">
     <div class="brand">
@@ -92,12 +89,7 @@ def render_html(clients_data: list, lang: str) -> str:
         <p class="subtitle">{html.escape(labels['subtitle'])}</p>
       </div>
     </div>
-    <div class="search-bar">
-      <input type="text" id="search-input" placeholder="{html.escape(labels['search_placeholder'])}">
-      <button onclick="searchCompany()">{html.escape(labels['search_button'])}</button>
-    </div>
   </div>
-  <p id="search-status"></p>
   <nav class="tabs">{tabs_html}</nav>
 </header>
 <main>{panels_html}</main>
@@ -109,10 +101,23 @@ def render_html(clients_data: list, lang: str) -> str:
 
 
 def _render_panel(client: ClientData, index: int, labels: dict) -> str:
-    press_html = render_press(client, labels)
     display = "block" if index == 0 else "none"
+    summary_html = ""
+    if client.answer:
+        summary_html = (
+            f'<div class="summary">'
+            f'<span class="summary-label">{html.escape(labels["summary_heading"])}</span>'
+            f'<p>{html.escape(client.answer)}</p>'
+            f'</div>'
+        )
+    press_html = render_press(client, labels)
+    headline_heading = "" if not client.press else (
+        f'<h3 class="section-heading">{html.escape(labels["headlines_heading"])}</h3>'
+    )
     return f"""<section class="panel" id="panel-{index}" style="display:{display}">
   <h2>{html.escape(client.name)}</h2>
+  {summary_html}
+  {headline_heading}
   <div class="card-grid">{press_html}</div>
 </section>"""
 
@@ -142,8 +147,6 @@ def render_press(client: ClientData, labels: dict) -> str:
 
 
 def _source_name(url: str) -> str:
-    from urllib.parse import urlparse
-
     domain = urlparse(url).netloc.replace("www.", "")
     return domain.split(".")[0].upper() if domain else ""
 
@@ -168,10 +171,7 @@ header {
   background: linear-gradient(135deg, var(--cisco-blue-dark) 0%, var(--cisco-blue) 100%);
   color: white; padding: 24px 32px 0;
 }
-.header-inner {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  flex-wrap: wrap; gap: 16px; padding-bottom: 20px;
-}
+.header-inner { padding-bottom: 20px; }
 .brand { display: flex; align-items: center; gap: 14px; }
 .brand-mark {
   width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
@@ -180,22 +180,6 @@ header {
 }
 header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
 .subtitle { margin: 2px 0 0; font-size: 13px; color: rgba(255,255,255,0.85); }
-.search-bar { display: flex; gap: 8px; }
-.search-bar input {
-  width: 240px; padding: 9px 12px; border-radius: 8px; border: 1px solid transparent;
-  font-size: 14px; outline: none;
-}
-.search-bar input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,0.5); }
-.search-bar button {
-  border: none; background: rgba(255,255,255,0.18); color: white; padding: 9px 18px;
-  border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
-  transition: background 0.15s ease;
-}
-.search-bar button:hover { background: rgba(255,255,255,0.32); }
-#search-status {
-  color: white; font-size: 13px; margin: 0; min-height: 18px; opacity: 0.9;
-  padding: 0 32px;
-}
 .tabs {
   display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 32px 0; margin: 0;
   border-top: 1px solid rgba(255,255,255,0.15);
@@ -210,7 +194,21 @@ header h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01e
 main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
 .panel { animation: fade-in 0.25s ease; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-.panel h2 { margin: 0 0 18px; font-size: 20px; color: var(--ink); }
+.panel h2 { margin: 0 0 16px; font-size: 20px; color: var(--ink); }
+.summary {
+  background: linear-gradient(135deg, rgba(4,159,217,0.08), rgba(0,80,115,0.05));
+  border: 1px solid rgba(4,159,217,0.25); border-radius: 12px;
+  padding: 16px 20px; margin-bottom: 20px;
+}
+.summary-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--cisco-blue-dark);
+}
+.summary p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
+.section-heading {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 12px;
+}
 .card-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
 }
@@ -237,65 +235,12 @@ main { padding: 28px 32px 8px; max-width: 1280px; margin: 0 auto; }
 .error { color: #b91c1c; }
 footer { padding: 24px 32px 32px; max-width: 1280px; margin: 0 auto; }
 .meta { margin: 0; font-size: 12.5px; color: var(--muted); }
-@media (max-width: 640px) {
-  .header-inner { flex-direction: column; }
-  .search-bar input { width: 100%; }
-  .search-bar { width: 100%; }
-}
 """
 
 _JS = """
 function showClient(index) {
   document.querySelectorAll('.panel').forEach((p, i) => { p.style.display = (i === index) ? 'block' : 'none'; });
   document.querySelectorAll('.tab').forEach((t, i) => { t.classList.toggle('active', i === index); });
-}
-
-async function searchCompany() {
-  const body = document.body;
-  const input = document.getElementById('search-input');
-  const status = document.getElementById('search-status');
-  const company = input.value.trim();
-  if (!company) return;
-  status.textContent = body.dataset.searchLoading;
-  try {
-    const res = await fetch('/search?company=' + encodeURIComponent(company));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    addDynamicPanel(data);
-    status.textContent = '';
-    input.value = '';
-  } catch (err) {
-    status.textContent = body.dataset.searchUnavailable;
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const input = document.getElementById('search-input');
-  if (input) {
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchCompany(); });
-  }
-});
-
-function addDynamicPanel(data) {
-  const emptyMsg = document.querySelector('main > p.empty');
-  if (emptyMsg) emptyMsg.remove();
-
-  const index = document.querySelectorAll('.panel').length;
-  const panel = document.createElement('section');
-  panel.className = 'panel';
-  panel.id = 'panel-' + index;
-  panel.innerHTML = '<h2></h2><div class="card-grid"></div>';
-  panel.querySelector('h2').textContent = data.name;
-  panel.querySelector('.card-grid').innerHTML = data.press_html;
-  document.querySelector('main').appendChild(panel);
-
-  const tab = document.createElement('button');
-  tab.className = 'tab';
-  tab.textContent = data.name;
-  tab.onclick = () => showClient(index);
-  document.querySelector('.tabs').appendChild(tab);
-
-  showClient(index);
 }
 """
 

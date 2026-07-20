@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from . import clients as clients_module
-from . import config, dashboard, search, server
+from . import config, dashboard, search
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,18 +43,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         default="output/dashboard.html",
         help="chemin du fichier HTML généré (défaut : output/dashboard.html)",
-    )
-    parser.add_argument(
-        "--serve",
-        action="store_true",
-        help=(
-            "démarre un petit serveur local (127.0.0.1) après la génération, "
-            "ouvre le dashboard dans le navigateur, et active la barre de "
-            "recherche pour interroger n'importe quelle entreprise à la volée"
-        ),
-    )
-    parser.add_argument(
-        "--port", type=int, default=8000, help="port du serveur local (défaut : 8000)"
     )
     return parser
 
@@ -104,14 +92,6 @@ def main(argv=None) -> int:
     html_content = dashboard.render_html(clients_data, lang)
     out_path = dashboard.write_dashboard(html_content, args.out)
     print(f"✅ Dashboard généré : {out_path}")
-
-    if args.serve:
-        try:
-            server.run(tavily_client, lang, str(out_path.parent), port=args.port)
-        except RuntimeError as exc:
-            print(f"❌ {exc}", file=sys.stderr)
-            return 1
-
     return 0
 
 

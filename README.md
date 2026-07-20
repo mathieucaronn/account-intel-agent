@@ -2,16 +2,15 @@
 
 Dashboard d'**account intelligence** pour équipes commerciales : une revue de
 presse par client suivi, limitée aux grands médias reconnus (Reuters, WSJ,
-Le Monde, BBC, Le Figaro, CNN...), en agrégeant **uniquement des données
-publiques**. Se met à jour automatiquement, sans intervention manuelle une
-fois configuré.
+Le Monde, BBC, Le Figaro, CNN...), avec un résumé du jour par entreprise, en
+agrégeant **uniquement des données publiques**. Se met à jour
+automatiquement, sans intervention manuelle une fois configuré.
 
 ## Ce que montre le dashboard
 
-Une page avec un sélecteur de client en haut (Sanofi, Dassault Systèmes...),
-une barre de recherche pour interroger n'importe quelle autre entreprise, et
-pour le client sélectionné : ses articles de presse récents (6 derniers
-mois) — titre, média, date, extrait, lien vers l'article.
+Une page avec un onglet par client suivi, et pour chacun : un résumé du jour
+généré à partir des dernières actualités, puis les grands titres — média,
+date, extrait, lien vers l'article.
 
 ## Fonctionnement
 
@@ -56,7 +55,7 @@ Renseignez dans `.env` :
 sont juste des noms d'entreprises, pas des données sensibles) :
 
 ```json
-["Sanofi", "Dassault Systèmes"]
+["Safran", "Sanofi", "Airbus"]
 ```
 
 `.env` reste ignoré par git ; aucun secret n'est stocké dans le code.
@@ -72,11 +71,6 @@ python -m account_intel --add "Danone"
 
 # Inclut ponctuellement une entreprise sans l'enregistrer
 python -m account_intel "L'Oréal"
-
-# Génère le dashboard, démarre un serveur local et l'ouvre dans le
-# navigateur, avec la barre de recherche active (recherche n'importe
-# quelle entreprise à la volée sans relancer de commande)
-python -m account_intel --serve
 ```
 
 Sortie par défaut : `output/dashboard.html` (`open output/dashboard.html`
@@ -100,9 +94,9 @@ Mise en place (une seule fois) :
    à partager tel quel, aucune action requise de la personne qui le
    consulte.
 
-La barre de recherche reste visible sur la page publiée mais y est
-désactivée (indisponible sans serveur derrière une page statique) : c'est
-attendu, elle ne fonctionne qu'en local avec `--serve`.
+Pour ajouter/retirer un client suivi : éditez `clients.json` sur GitHub (pas
+besoin de repasser en local), le prochain passage du workflow régénère le
+dashboard avec la nouvelle liste.
 
 ## Respect des sources
 
@@ -120,10 +114,11 @@ attendu, elle ne fonctionne qu'en local avec `--serve`.
   afficher « aucun article trouvé » — c'est volontaire (mieux vaut rien
   qu'un résultat hors sujet).
 - Risque d'homonymie sur les noms ambigus : précisez si besoin (ex.
-  `"Mistral AI"` plutôt que `"Mistral"`).
-- Pas de déduplication ni de synthèse IA : c'est une revue d'articles
-  organisée, pas un résumé rédigé — volontairement, pour rester simple et
-  éviter les coûts/erreurs d'un LLM.
+  `"Mistral AI"` plutôt que `"Mistral"`, `"TotalEnergies"` plutôt que
+  `"Total"`).
+- Le résumé du jour est généré par l'API de recherche (Tavily), pas par un
+  LLM dédié : pas de déduplication poussée, et il peut occasionnellement
+  sortir en anglais même pour une recherche en français.
 - Habillage visuel inspiré des couleurs de Cisco Blue à titre de projet de
   stage personnel ; ce n'est pas un produit officiel Cisco.
 
